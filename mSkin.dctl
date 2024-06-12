@@ -1,0 +1,229 @@
+#line 2 // This line makes line numbers appear correctly in the log file
+
+// UI parameter definitions
+DEFINE_UI_PARAMS(p_TargetHue, Target Skintone, DCTLUI_SLIDER_FLOAT, 0.15, -0.5, 0.5, 0.001) // Hue to be turned green
+DEFINE_UI_PARAMS(p_TargetWidth, Skintone Width, DCTLUI_SLIDER_FLOAT, 0.025, 0.01, 0.05, 0.001) // Width of the skintone selected
+DEFINE_UI_PARAMS(p_dimToggle, Log Input, DCTLUI_CHECK_BOX, 1)
+DEFINE_UI_PARAMS(p_showHelper, Show Helper, DCTLUI_CHECK_BOX, 1)
+DEFINE_UI_PARAMS(p_keepOriginal, Keep Original Color, DCTLUI_CHECK_BOX, 0)
+
+// Convert RGB color to HSL color
+__DEVICE__ float3 RGBtoHSL(float3 in) {
+    float r = in.x, g = in.y, b = in.z;
+
+    float cmax = _fmaxf(r, _fmaxf(g, b)); // Max component value
+    float cmin = _fminf(r, _fminf(g, b)); // Min component value
+    float delta = cmax - cmin; // Difference between max and min
+
+    float h = 0; // Hue
+    if (delta != 0) {
+        if (cmax == r) h = (g - b) / delta; // Red is max component
+        else if (cmax == g) h = (b - r) / delta + 2; // Green is max component
+        else if (cmax == b) h = (r - g) / delta + 4; // Blue is max component
+        h /= 6; // Normalize hue value to range [0, 1]
+        if (h < 0) h += 1.0; // Ensure hue is non-negative
+    }
+
+    float l = (cmax + cmin) / 2; // Calculate lightness
+    float s = (delta == 0) ? 0 : (l <= 0.5) ? delta / (cmax + cmin) : delta / (2.0f - delta); // Calculate saturation
+
+    return make_float3(h, s, l); // Return HSL color
+}
+
+__DEVICE__ float wrapHue(float hue) {
+    return hue - _floorf(hue); // Ensure hue is in the range [0, 1]
+}
+
+__DEVICE__ float3 HSLtoRGB(float3 in) {
+    float h = in.x, s = in.y, l = in.z;
+
+    if (s == 0) return make_float3(l, l, l); // If saturation is 0, return grayscale color
+
+    float t1 = (l < 0.5) ? l * (s + 1.0f) : l + s - l * s; // Temporary value 1
+    float t2 = 2 * l - t1; // Temporary value 2
+
+    float tR = wrapHue(h + 0.333f); // Temporary red hue value
+    float tG = wrapHue(h); // Temporary green hue value
+    float tB = wrapHue(h - 0.333f); // Temporary blue hue value
+
+    // Calculate red, green, and blue components
+    float r = (6 * tR < 1) ? t2 + (t1 - t2) * 6 * tR : (2 * tR < 1) ? t1 : (3 * tR < 2) ? t2 + (t1 - t2) * (0.666f - tR) * 6 : t2;
+    float g = (6 * tG < 1) ? t2 + (t1 - t2) * 6 * tG : (2 * tG < 1) ? t1 : (3 * tG < 2) ? t2 + (t1 - t2) * (0.666f - tG) * 6 : t2;
+    float b = (6 * tB < 1) ? t2 + (t1 - t2) * 6 * tB : (2 * tB < 1) ? t1 : (3 * tB < 2) ? t2 + (t1 - t2) * (0.666f - tB) * 6 : t2;
+
+    return make_float3(r, g, b); // Return RGB color
+}
+
+// Check if hue is within a specified range
+__DEVICE__ bool isHueInRange(float hue, float center, float width) {
+    hue = wrapHue(hue);
+    float start = wrapHue(center - width / 2.0);
+    float end = wrapHue(center + width / 2.0);
+
+    return (start < end) ? (hue >= start && hue <= end) : (hue >= start || hue <= end);
+}
+
+// Mix two float3 values with a specified mix factor
+__DEVICE__ float3 mixFloat3(float mix, float3 inA, float3 inB) {
+    return inA * (1 - mix) + inB * mix;
+}
+
+__DEVICE__ float3 showHelper(int p_Width, int p_Height, int p_X, int p_Y, float3 inColor) {
+    // Calculate the threshold for the bottom 5% of the pixels
+    int threshold = p_Height * 0.05;
+    // Calculate section width
+    int sectionWidth = p_Width / 3;
+    // Calculate scale to make text 1/4 the height of the bottom bar
+    int scale = threshold / 10;
+
+    // If the current pixel is within the bottom 5%, change its color based on horizontal position
+    if (p_Y >= p_Height - threshold) {
+        // Red section: first third
+        if (p_X < sectionWidth) {
+            bool isWhitePixel = false;
+            // Center the pixel map
+            int textWidth = 39 * scale;
+            int startX = (sectionWidth - textWidth) / 2;
+            int textHeight = 5 * scale;
+            int startY = p_Height - threshold + (threshold - textHeight) / 2;
+            
+            // Define the coordinates for the letter 'More Red'
+            int pixelMapRed[5][39] = {
+                {1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0},
+                {1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1},
+                {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1},
+                {1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1},
+                {1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0}
+            };
+
+            // Check if the current pixel is part of the 'More Red'
+            for (int y = 0; y < 5 * scale; ++y) {
+                for (int x = 0; x < 39 * scale; ++x) {
+                    if (pixelMapRed[y / scale][x / scale] == 1) {
+                        if (p_X == startX + x && p_Y == startY + y) {
+                            isWhitePixel = true;
+                            break;
+                        }
+                    }
+                }
+                if (isWhitePixel) break;
+            }
+
+            return isWhitePixel ? make_float3(1, 1, 1) : make_float3(0.5, 0, 0); // White for 'More Red', red for the rest
+        }
+
+        // Green section: second third
+        else if (p_X < sectionWidth * 2) {
+            bool isWhitePixel = false;
+            // Center the pixel map
+            int textWidth = 35 * scale;
+            int startX = sectionWidth + (sectionWidth - textWidth) / 2;
+            int textHeight = 5 * scale;
+            int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+            // Define the coordinates for 'Skintone'
+            int pixelMapGreen[5][35] = {
+                {0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0},
+                {1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0},
+                {0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0},
+                {0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0},
+                {1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0}
+            };
+
+            // Check if the current pixel is part of the 'Skintone'
+            for (int y = 0; y < 5 * scale; ++y) {
+                for (int x = 0; x < 35 * scale; ++x) {
+                    if (pixelMapGreen[y / scale][x / scale] == 1) {
+                        if (p_X == startX + x && p_Y == startY + y) {
+                            isWhitePixel = true;
+                            break;
+                        }
+                    }
+                }
+                if (isWhitePixel) break;
+            }
+
+            return isWhitePixel ? make_float3(1, 1, 1) : make_float3(0, 0.5, 0); // White for 'Skintone', green for the rest
+        }
+
+        // Yellow section: last third
+        else {
+            bool isWhitePixel = false;
+            // Center the pixel map
+            int textWidth = 51 * scale;
+            int startX = sectionWidth * 2 + (sectionWidth - textWidth) / 2;
+            int textHeight = 5 * scale;
+            int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+            // Define the coordinates for 'MORE YELLOW'
+int pixelMapYellow[5][52] = {
+    {1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1},
+    {1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1},
+    {1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1},
+    {1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1},
+    {1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0}
+};
+
+            // Check if the current pixel is part of the 'MORE YELLOW'
+            for (int y = 0; y < 5 * scale; ++y) {
+                for (int x = 0; x < 52 * scale; ++x) {
+                    if (pixelMapYellow[y / scale][x / scale] == 1) {
+                        if (p_X == startX + x && p_Y == startY + y) {
+                            isWhitePixel = true;
+                            break;
+                        }
+                    }
+                }
+                if (isWhitePixel) break;
+            }
+
+            return isWhitePixel ? make_float3(1, 1, 1) : make_float3(0.5, 0.45, 0); // White for 'MORE YELLOW', yellow for the rest
+        }
+    }
+    // Return the original color for pixels not in the bottom 10%
+    return inColor;
+}
+
+// Main function
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    float3 inRGB = make_float3(p_R, p_G, p_B);
+    float3 inHSL = RGBtoHSL(inRGB);
+
+    float adjustedHue = p_TargetHue + 0.4; // Adjust target hue to make 0.1 correspond to 0
+    float targetHue = wrapHue(adjustedHue + 0.5); // Ensure target hue is in range [0, 1]
+
+    bool hueGreen = isHueInRange(inHSL.x, targetHue, p_TargetWidth);
+    bool hueRed = isHueInRange(inHSL.x, wrapHue(targetHue - p_TargetWidth * 1), p_TargetWidth);
+    bool hueYellow = isHueInRange(inHSL.x, wrapHue(targetHue + p_TargetWidth * 1), p_TargetWidth);
+
+    float3 green = make_float3(0, 1, 0);
+    float3 red = make_float3(1, 0, 0);
+    float3 yellow = make_float3(1, 0.75, 0);
+
+    // Set blendAmount based on p_dimToggle
+    float blendAmount = (p_dimToggle == 1) ? 0.25 : 0.65;
+
+    // Blend the colors at 25% strength
+    float3 out;
+    if (hueGreen) {
+        out = mixFloat3(blendAmount, inRGB, (inRGB + green) / 2);
+    } else if (hueRed) {
+        out = mixFloat3(blendAmount, inRGB, (inRGB + red) / 2);
+    } else if (hueYellow) {
+        out = mixFloat3(blendAmount, inRGB, (inRGB + yellow) / 2);
+    } else {
+        if (p_keepOriginal == 1) {
+            out = inRGB; // Keep the original color
+        } else {
+            float grey = (inRGB.x + inRGB.y + inRGB.z) / 3.0f; // Convert non-selected hues to greyscale
+            out = make_float3(grey, grey, grey);
+        }
+    }
+
+    // Change the bottom 10% of the pixels to red, green, and yellow in equal horizontal sections
+    if (p_showHelper == 1) {
+        out = showHelper(p_Width, p_Height, p_X, p_Y, out);
+    }
+
+    return out; // Return the final result
+}
