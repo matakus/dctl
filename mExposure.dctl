@@ -1,13 +1,30 @@
-#line 2 // This line makes line numbers appear correctly in the log file
+#line 2 //Debugging line
+
+// Exposure DCTL 1.1 //M.C
+// Adjusts the exposure of an image in stops, with the ability to mask it to the highlights and shadows
+// You can also have control over the saturation
+
+// UI Parameters
+DEFINE_UI_PARAMS(p_Exp, Exposure, DCTLUI_SLIDER_FLOAT, 0, -7, 7, 0.001) //Default is 7 Stops
+DEFINE_UI_PARAMS(p_ExpHigh, Highlight + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1) //Default is 5 Stops
+DEFINE_UI_PARAMS(p_ExpShad, Shadow + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1) //Default is 5 Stops
+DEFINE_UI_PARAMS(maskStrenHigh, High Mask Strength, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1, 0.01) //Default is 0.5
+DEFINE_UI_PARAMS(maskStrenShad, Shad Mask Strength, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1, 0.01) //Default is 0.5
+DEFINE_UI_PARAMS(HighlightSaturation, Highlight Saturation, DCTLUI_SLIDER_FLOAT, 0, -1, 1, 0.01) 
+DEFINE_UI_PARAMS(ShadowSaturation, Shadow Saturation, DCTLUI_SLIDER_FLOAT, 0, -1, 1, 0.01)
+DEFINE_UI_PARAMS(chanTypeH, Highlight Mask, DCTLUI_COMBO_BOX, 0, {GREY_h, RED_h, GREEN_h, BLUE_h}, {Luma, Red Channel, Green Channel, Blue Channel}) //Default is Luma
+DEFINE_UI_PARAMS(chanTypeS, Shadow Mask, DCTLUI_COMBO_BOX, 0, {GREY_s, RED_s, GREEN_s, BLUE_s}, {Luma, Red Channel, Green Channel, Blue Channel}) //Default is Luma
+DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)
+DEFINE_UI_PARAMS(toggleMask, On: High | Off: Shad, DCTLUI_CHECK_BOX, 1)
+// Default is davinci intermediate but you can change to whatever you want
+DEFINE_UI_PARAMS(p_TransferFunction, Transfer Function, DCTLUI_COMBO_BOX, 10, {aces_cc, aces_cct, appleLog, arriLogC3, arriLogC4, blackmagicFilmGen5, canonlog, canonlog2, canonlog3, cineon, davinciIntermediate, djiDlog, filmlightTlog, flog, flog2, goProProtune, leicaLog, lin, nikonNlog, panasonicVlog, redlog3g10, sonySlog, sonySlog2, sonySlog3}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen 5, Canon Log, Canon Log 2, Canon Log 3, Cineon Film Log, DaVinci Intermediate, DJI D-Log, Filmlight T-Log, FujiFilm F-Log, FujiFilm F-Log2, GoPro Protune, Leica L-Log, Linear, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
 
 //Transfer Functions
-// Converts input from log to linear and linear to log
-
-////// ACES //////
+//Converts input from log to linear and linear to log
 
 //AcesCC
 
-__DEVICE__ float3 fromACEScc(float3 in) {
+__DEVICE__ float3 logToLinACEScc(float3 in) {
     float a = 9.72, b = 17.52, c = 0.0000152587890625, d = _log2f(65504);
     float3 out = make_float3(
         in.x <= (a - 15) / b ? (_powf(2, in.x * b - a) - c) * 2 : in.x < (d + a) / b ? _powf(2, in.x * b - a) - c : 65504,
@@ -17,7 +34,7 @@ __DEVICE__ float3 fromACEScc(float3 in) {
     return out;
 }
 
-__DEVICE__ float3 toACEScc(float3 in) {
+__DEVICE__ float3 linToLogACEScc(float3 in) {
     float a = 9.72, b = 17.52, c = 0.0000152587890625, lin_cut = 0.000030517578125;
     float3 out = make_float3(
         in.x <= 0 ? (_log2f(c) + a) / b : in.x < lin_cut ? (_log2f(c + in.x * 0.5) + a) / b : (_log2f(in.x) + a) / b,
@@ -29,7 +46,7 @@ __DEVICE__ float3 toACEScc(float3 in) {
 
 //AcesCCT
 
-__DEVICE__ float3 fromACEScct(float3 in) {
+__DEVICE__ float3 logToLinACEScct(float3 in) {
     float a = 10.5402377416545, b = 0.0729055341958355, c = 9.72, d = 17.52, e = _log2f(65504), lin_cut = 0.155251141552511;
     float3 out = make_float3(
         in.x <= lin_cut ? (in.x - b) / a : in.x < (e + c) / d ? _powf(2, in.x * d - c) : 65504,
@@ -39,7 +56,7 @@ __DEVICE__ float3 fromACEScct(float3 in) {
     return out;
 }
 
-__DEVICE__ float3 toACEScct(float3 in) {
+__DEVICE__ float3 linToLogACEScct(float3 in) {
     float a = 10.5402377416545, b = 0.0729055341958355, c = 9.72, d = 17.52, e = 0.0078125;
     float3 out = make_float3(
         in.x <= e ? a * in.x + b : (_log2f(in.x) + c) / d,
@@ -53,7 +70,7 @@ __DEVICE__ float3 toACEScct(float3 in) {
 
 //AppleLog
 
-__DEVICE__ float3 fromAppleLogProfile(float3 in) {
+__DEVICE__ float3 logToLinAppleLogProfile(float3 in) {
     float R_0 = -0.05641088f, R_t = 0.01f, sigma = 47.28711236f, beta = 0.00964052f, gamma = 0.08550479f, delta = 0.69336945f, P_t = sigma * _powf(R_t - R_0, 2.0f);
     return make_float3(
         in.x >= P_t ? _powf(2.0f, (in.x - delta) / gamma) - beta : (in.x >= 0.0f ? _powf(in.x / sigma, 0.5f) + R_0 : R_0),
@@ -62,7 +79,7 @@ __DEVICE__ float3 fromAppleLogProfile(float3 in) {
     );
 }
 
-__DEVICE__ float3 toAppleLogProfile(float3 in) {
+__DEVICE__ float3 linToLogAppleLogProfile(float3 in) {
     float R_0 = -0.05641088f, R_t = 0.01f, sigma = 47.28711236f, beta = 0.00964052f, gamma = 0.08550479f, delta = 0.69336945f;
     return make_float3(
         in.x >= R_t ? gamma * _log2f(in.x + beta) + delta : (in.x >= R_0 ? sigma * _powf(in.x - R_0, 2.0f) : 0.0f),
@@ -75,7 +92,7 @@ __DEVICE__ float3 toAppleLogProfile(float3 in) {
 
 //Arri LogC3
 
-__DEVICE__ float3 fromArriLogC3(float3 in) {
+__DEVICE__ float3 logToLinArriLogC3(float3 in) {
     float3 out;
     const float cut = 0.010591, a = 5.555556, b = 0.052272, c = 0.247190, d = 0.385537, e = 5.367655, f = 0.092809, th = e * cut + f;
     out.x = (in.x > th) ? (_powf(10, (in.x - d) / c) - b) / a : (in.x - f) / e;
@@ -84,7 +101,7 @@ __DEVICE__ float3 fromArriLogC3(float3 in) {
     return out;
 }
 
-__DEVICE__ float3 toArriLogC3(float3 in) {
+__DEVICE__ float3 linToLogArriLogC3(float3 in) {
     float3 out;
     const float cut = 0.010591, a = 5.555556, b = 0.052272, c = 0.247190, d = 0.385537, e = 5.367655, f = 0.092809;
     out.x = (in.x > cut) ? c * _log10f(a * in.x + b) + d : e * in.x + f;
@@ -95,7 +112,7 @@ __DEVICE__ float3 toArriLogC3(float3 in) {
 
 //Arri LogC4
 
-__DEVICE__ float3 fromArriLogC4(float3 in) {
+__DEVICE__ float3 logToLinArriLogC4(float3 in) {
     float a = (_powf(2.0, 18.0) - 16.0) / 117.45, b = (1023.0 - 95.0) / 1023.0, c = 95.0 / 1023.0, s = (7 * _logf(2) * _powf(2.0, 7 - 14 * c / b)) / (a * b), t = (_powf(2.0, 14.0 * (-c / b) + 6.0) - 64.0) / a;
     return make_float3(
         in.x < 0.0 ? in.x * s + t : (_powf(2.0, 14.0 * (in.x - c) / b + 6.0) - 64.0) / a,
@@ -104,7 +121,7 @@ __DEVICE__ float3 fromArriLogC4(float3 in) {
     );
 }
 
-__DEVICE__ float3 toArriLogC4(float3 in) {
+__DEVICE__ float3 linToLogArriLogC4(float3 in) {
     float a = (_powf(2.0, 18.0) - 16.0) / 117.45, b = (1023.0 - 95.0) / 1023.0, c = 95.0 / 1023.0, s = (7 * _logf(2) * _powf(2.0, 7 - 14 * c / b)) / (a * b), t = (_powf(2.0, 14.0 * (-c / b) + 6.0) - 64.0) / a;
     return make_float3(
         in.x < t ? (in.x - t) / s : (_log2f(a * in.x + 64.0) - 6.0) / 14.0 * b + c,
@@ -116,7 +133,7 @@ __DEVICE__ float3 toArriLogC4(float3 in) {
 ////// BLACKMAGIC //////
 
 //Blackmagic Design Film Gen 5
-__DEVICE__ float3 fromBlackmagicFilmGen5(float3 in) {
+__DEVICE__ float3 logToLinBlackmagicFilmGen5(float3 in) {
     float A = 0.08692876065491224f, B = 0.005494072432257808f, C = 0.5300133392291939f, D = 8.283605932402494f, E = 0.09246575342465753f, LOG_CUT = D * 0.005f + E;
     return make_float3(
         in.x < LOG_CUT ? (in.x - E) / D : _expf((in.x - C) / A) - B,
@@ -125,7 +142,7 @@ __DEVICE__ float3 fromBlackmagicFilmGen5(float3 in) {
     );
 }
 
-__DEVICE__ float3 toBlackmagicFilmGen5(float3 in) {
+__DEVICE__ float3 linToLogBlackmagicFilmGen5(float3 in) {
     float A = 0.08692875224330131f, B = 0.0054940711907293955f, C = 0.5300133837514731f, D = 8.283611088773256f, E = 0.09246580021201303f, LIN_CUT = 0.004999993693740552f;
     return make_float3(
         in.x <= LIN_CUT ? (in.x * D + E) : (_logf(in.x + B) * A + C),
@@ -134,7 +151,7 @@ __DEVICE__ float3 toBlackmagicFilmGen5(float3 in) {
     );
 }
 
-__DEVICE__ float3 fromDavinciIntermediate(float3 in) {
+__DEVICE__ float3 logToLinDavinciIntermediate(float3 in) {
     float a = 0.0075f, b = 7.0f, c = 0.07329248f, m = 10.44426855f, log_cut = 0.02740668f;
     return make_float3(
         in.x > log_cut ? _powf(2.f, (in.x / c) - b) - a : in.x / m,
@@ -143,7 +160,7 @@ __DEVICE__ float3 fromDavinciIntermediate(float3 in) {
     );
 }
 
-__DEVICE__ float3 toDavinciIntermediate(float3 in) {
+__DEVICE__ float3 linToLogDavinciIntermediate(float3 in) {
     float a = 0.0075f, b = 7.0f, c = 0.07329248f, m = 10.44426855f, lin_cut = 0.00262409f;
     return make_float3(
         in.x > lin_cut ? (_log2f(in.x + a) + b) * c : in.x * m,
@@ -156,7 +173,7 @@ __DEVICE__ float3 toDavinciIntermediate(float3 in) {
 
 //Canon log
 
-__DEVICE__ float3 fromCanonLog(float3 in) {
+__DEVICE__ float3 logToLinCanonLog(float3 in) {
     float a = 0.529136f, b = 0.0730597f, c = 10.1596f, log_cut = 0.0730597f;
     return make_float3(
         in.x < log_cut ? -(_powf(10.0f, (b - in.x) / a) - 1.0f) / c : (_powf(10.0f, (in.x - b) / a) - 1.0f) / c,
@@ -165,7 +182,7 @@ __DEVICE__ float3 fromCanonLog(float3 in) {
     );
 }
 
-__DEVICE__ float3 toCanonLog(float3 in) {
+__DEVICE__ float3 linToLogCanonLog(float3 in) {
     float a = 0.529136f, b = 0.0730597f, c = 10.1596f, lin_cut = -( _powf(10.0f, (b - 0.0730597f) / a) - 1.0f) / c;
     return make_float3(
         in.x < lin_cut ? -(a * _log10f(-in.x * c + 1.0f) - b) : a * _log10f(c * in.x + 1.0f) + b,
@@ -176,7 +193,7 @@ __DEVICE__ float3 toCanonLog(float3 in) {
 
 //Canon log 2
 
-__DEVICE__ float3 fromCanonLog2(float3 in) {
+__DEVICE__ float3 logToLinCanonLog2(float3 in) {
     float a = 0.24136077f, b = 0.092864125f, c = 87.099375f;
     return make_float3(
         in.x < b ? -(_powf(10.0f, (b - in.x) / a) - 1.0f) / c : (_powf(10.0f, (in.x - b) / a) - 1.0f) / c,
@@ -185,7 +202,7 @@ __DEVICE__ float3 fromCanonLog2(float3 in) {
     );
 }
 
-__DEVICE__ float3 toCanonLog2(float3 in) {
+__DEVICE__ float3 linToLogCanonLog2(float3 in) {
     float a = 0.24136077f, b = 0.092864125f, c = 87.099375f;
     return make_float3(
         in.x < 0 ? b - a * _log10f(-in.x * c + 1.0f) : a * _log10f(in.x * c + 1.0f) + b,
@@ -196,7 +213,7 @@ __DEVICE__ float3 toCanonLog2(float3 in) {
 
 //Canon log 3
 
-__DEVICE__ float3 fromCanonLog3(float3 in) {
+__DEVICE__ float3 logToLinCanonLog3(float3 in) {
     float a = 0.36726845f, b = 0.092864125f, c = 0.24136077f, d = 87.099375f;
     float lin_cut_low = 0.092864125f, lin_cut_high = 0.15277891f;
 
@@ -213,7 +230,7 @@ __DEVICE__ float3 fromCanonLog3(float3 in) {
     );
 }
 
-__DEVICE__ float3 toCanonLog3(float3 in) {
+__DEVICE__ float3 linToLogCanonLog3(float3 in) {
     float a = 0.36726845f, b = 0.092864125f, c = 0.24136077f, d = 87.099375f;
     float lin_cut_low = 0.092864125f, lin_cut_high = 0.15277891f;
 
@@ -234,7 +251,7 @@ __DEVICE__ float3 toCanonLog3(float3 in) {
 
 // Cineon Film Log
 
-__DEVICE__ float3 fromCineon(float3 in) {
+__DEVICE__ float3 logToLinCineon(float3 in) {
     float black_offset = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
     float scale = 1.0f / (1.0f - black_offset);
     return make_float3(
@@ -244,7 +261,7 @@ __DEVICE__ float3 fromCineon(float3 in) {
     );
 }
 
-__DEVICE__ float3 toCineon(float3 in) {
+__DEVICE__ float3 linToLogCineon(float3 in) {
     float black_offset = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
     float scale = 1.0f - black_offset;
     return make_float3(
@@ -258,7 +275,7 @@ __DEVICE__ float3 toCineon(float3 in) {
 
 // DJI D-Log
 
-__DEVICE__ float3 fromDJIDLog(float3 in) {
+__DEVICE__ float3 logToLinDJIDLog(float3 in) {
     float a = 3.89616f, b = -2.27752f, c = 0.9892f, d = 0.0108f, lin_cut = 0.14f;
     return make_float3(
         in.x < lin_cut ? (in.x - 0.0929f) / 6.025f : (_powf(10.0f, a * in.x + b) - d) / c,
@@ -267,7 +284,7 @@ __DEVICE__ float3 fromDJIDLog(float3 in) {
     );
 }
 
-__DEVICE__ float3 toDJIDLog(float3 in) {
+__DEVICE__ float3 linToLogDJIDLog(float3 in) {
     float a = 0.256663f, b = 0.584555f, c = 0.9892f, d = 0.0108f, log_cut = 0.0078f;
     return make_float3(
         in.x < log_cut ? 6.025f * in.x + 0.0929f : (_log10f(in.x * c + d)) * a + b,
@@ -276,14 +293,11 @@ __DEVICE__ float3 toDJIDLog(float3 in) {
     );
 }
 
-
-
 ////// FILMLIGHT //////
 
 // T-Log
 
-
-__DEVICE__ float3 toFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
+__DEVICE__ float3 linToLogFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
     float b = 1 / (0.7107f + 1.2359f * _logf(w * g));
     float gs = g / (1 - o);
     float C = b / gs;
@@ -301,7 +315,7 @@ __DEVICE__ float3 toFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, 
     );
 }
 
-__DEVICE__ float3 fromFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
+__DEVICE__ float3 logToLinFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
     float b = 1 / (0.7107f + 1.2359f * _logf(w * g));
     float gs = g / (1 - o);
     float C = b / gs;
@@ -319,12 +333,11 @@ __DEVICE__ float3 fromFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f
     );
 }
 
-
 ////// FUJIFILM //////
 
 // F-Log
 
-__DEVICE__ float3 fromFLog(float3 in) {
+__DEVICE__ float3 logToLinFLog(float3 in) {
     float a = 0.555556f, b = 0.009468f, c = 0.344676f, d = 0.790453f, e = 8.735631f, f = 0.092864f;
     float cut2 = 0.100537775223865f;
 
@@ -335,7 +348,7 @@ __DEVICE__ float3 fromFLog(float3 in) {
     );
 }
 
-__DEVICE__ float3 toFLog(float3 in) {
+__DEVICE__ float3 linToLogFLog(float3 in) {
     float a = 0.555556f, b = 0.009468f, c = 0.344676f, d = 0.790453f, e = 8.735631f, f = 0.092864f;
     float cut1 = 0.00089f;
 
@@ -348,7 +361,7 @@ __DEVICE__ float3 toFLog(float3 in) {
 
 // F-Log2
 
-__DEVICE__ float3 fromFLog2(float3 in) {
+__DEVICE__ float3 logToLinFLog2(float3 in) {
     float a = 5.555556f, b = 0.064829f, c = 0.245281f, d = 0.384316f, e = 8.799461f, f = 0.092864f;
     float cut2 = 0.100686685370811f;
 
@@ -359,7 +372,7 @@ __DEVICE__ float3 fromFLog2(float3 in) {
     );
 }
 
-__DEVICE__ float3 toFLog2(float3 in) {
+__DEVICE__ float3 linToLogFLog2(float3 in) {
     float a = 5.555556f, b = 0.064829f, c = 0.245281f, d = 0.384316f, e = 8.799461f, f = 0.092864f;
     float cut1 = 0.000889f;
 
@@ -374,7 +387,7 @@ __DEVICE__ float3 toFLog2(float3 in) {
 
 // GoPro Protune
 
-__DEVICE__ float3 fromProtune(float3 in) {
+__DEVICE__ float3 logToLinProtune(float3 in) {
     float a = 112.0f, b = 113.0f;
     return make_float3(
         (_powf(b, in.x) - 1.0f) / a,
@@ -383,7 +396,7 @@ __DEVICE__ float3 fromProtune(float3 in) {
     );
 }
 
-__DEVICE__ float3 toProtune(float3 in) {
+__DEVICE__ float3 linToLogProtune(float3 in) {
     float a = 112.0f, b = 113.0f;
     return make_float3(
         _logf(in.x * a + 1.0f) / _logf(b),
@@ -397,7 +410,7 @@ __DEVICE__ float3 toProtune(float3 in) {
 
 // Leica L-Log
 
-__DEVICE__ float3 fromLeicaLog(float3 in) {
+__DEVICE__ float3 logToLinLeicaLog(float3 in) {
     float a = 8.0f, b = 0.09f, c = 0.27f, d = 1.3f, e = 0.0115f, f = 0.6f;
     float cut2 = 0.1380f;
 
@@ -409,7 +422,7 @@ __DEVICE__ float3 fromLeicaLog(float3 in) {
 }
 
 
-__DEVICE__ float3 toLeicaLog(float3 in) {
+__DEVICE__ float3 linToLogLeicaLog(float3 in) {
     float a = 8.0f, b = 0.09f, c = 0.27f, d = 1.3f, e = 0.0115f, f = 0.6f;
     float cut1 = 0.006f;
 
@@ -423,7 +436,7 @@ __DEVICE__ float3 toLeicaLog(float3 in) {
 ////// NIKON //////
 
 // Nikon N-Log
-__DEVICE__ float3 fromNLog(float3 in) {
+__DEVICE__ float3 logToLinNLog(float3 in) {
     float cut2 = 452.0f / 1023.0f, a = 650.0f / 1023.0f, b = 0.0075f, c = 150.0f / 1023.0f, d = 619.0f / 1023.0f;
     return make_float3(
         in.x < cut2 ? _powf(in.x / a, 3.0f) - b : _expf((in.x - d) / c),
@@ -432,7 +445,7 @@ __DEVICE__ float3 fromNLog(float3 in) {
     );
 }
 
-__DEVICE__ float3 toNLog(float3 in) {
+__DEVICE__ float3 linToLogNLog(float3 in) {
     float cut1 = 0.328f, a = 650.0f / 1023.0f, b = 0.0075f, c = 150.0f / 1023.0f, d = 619.0f / 1023.0f;
     return make_float3(
         in.x < cut1 ? a * _powf(in.x + b, 1.0f / 3.0f) : c * _logf(in.x) + d,
@@ -443,7 +456,7 @@ __DEVICE__ float3 toNLog(float3 in) {
 
 ////// PANASONIC //////
 
-__DEVICE__ float3 fromVLog(float3 in) {
+__DEVICE__ float3 logToLinVLog(float3 in) {
     float c = 0.241514f, b = 0.00873f, d = 0.598206f, cut2 = 0.181f, scale = 1023.0f;
     return make_float3(
         in.x < cut2 ? (in.x - 0.125f) / 5.6f :
@@ -455,7 +468,7 @@ __DEVICE__ float3 fromVLog(float3 in) {
     );
 }
 
-__DEVICE__ float3 toVLog(float3 in) {
+__DEVICE__ float3 linToLogVLog(float3 in) {
     float c = 0.241514f, b = 0.00873f, d = 0.598206f, cut1 = 0.01f, scale = 1023.0f;
     return make_float3(
         in.x < cut1 ? (5.6f * in.x + 0.125f) :
@@ -471,7 +484,7 @@ __DEVICE__ float3 toVLog(float3 in) {
 
 // Redlog3G10
 
-__DEVICE__ float3 fromRedLog3g10(float3 in) {
+__DEVICE__ float3 logToLinRedLog3g10(float3 in) {
     float a = 0.224282f, b = 155.975327f, c = 0.01f, g = 15.1927f;
     return make_float3(
         (in.x > 0.0f ? (_powf(10.0f, in.x / a) - 1.0f) / b : (in.x / g) - c),
@@ -480,7 +493,7 @@ __DEVICE__ float3 fromRedLog3g10(float3 in) {
     );
 }
 
-__DEVICE__ float3 toRedLog3g10(float3 in) {
+__DEVICE__ float3 linToLogRedLog3g10(float3 in) {
     float a = 0.224282f, b = 155.975327f, g = 15.1927f;
     return make_float3(
         (in.x > 0.0f ? a * _log10f((in.x * b) + 1.0f) : in.x * g),
@@ -493,7 +506,7 @@ __DEVICE__ float3 toRedLog3g10(float3 in) {
 
 // Sony Slog
 
-__DEVICE__ float3 fromSonySLog(float3 in) {
+__DEVICE__ float3 logToLinSonySLog(float3 in) {
     const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
     const float offset = 64.0f, range = 940.0f - 64.0f, cut = 0.030001222851889303f;
     const float scale = 1023.0f, fac1 = 219.0f / 155.0f, fac2 = 3.53881278538813f, mul = 0.9f;
@@ -509,7 +522,7 @@ __DEVICE__ float3 fromSonySLog(float3 in) {
     );
 }
 
-__DEVICE__ float3 toSonySLog(float3 in) {
+__DEVICE__ float3 linToLogSonySLog(float3 in) {
     const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
     const float scale = 1023.0f, mul = 0.9f, fac1 = 155.0f / 219.0f, fac2 = 3.53881278538813f;
     const float offset = 64.0f, range = 940.0f - 64.0f, cut = -0.00008153227156f;
@@ -527,7 +540,7 @@ __DEVICE__ float3 toSonySLog(float3 in) {
 
 // Sony Slog2
 
-__DEVICE__ float3 fromSonySLog2(float3 in) {
+__DEVICE__ float3 logToLinSonySLog2(float3 in) {
     const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
     const float offset = 64.0f, range = 876.0f, lin_cut = 0.030001222851889303f;
     const float scale = 1023.0f, factor1 = 219.0f / 155.0f, factor2 = 3.53881278538813f, mul = 0.9f;
@@ -539,7 +552,7 @@ __DEVICE__ float3 fromSonySLog2(float3 in) {
     );
 }
 
-__DEVICE__ float3 toSonySLog2(float3 in) {
+__DEVICE__ float3 linToLogSonySLog2(float3 in) {
     const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
     const float scale = 1023.0f, mul = 0.9f, factor1 = 155.0f / 219.0f, factor2 = 3.53881278538813f;
     const float offset = 64.0f, range = 876.0f, lin_cut = -0.00008153227156f;
@@ -553,7 +566,7 @@ __DEVICE__ float3 toSonySLog2(float3 in) {
 
 // Sony Slog3
 
-__DEVICE__ float3 fromSonySLog3(float3 in) {
+__DEVICE__ float3 logToLinSonySLog3(float3 in) {
     float lin_cut = 171.2102946929 / 1023.0;
     return make_float3(
         in.x >= lin_cut ? (_powf(10.0f, (in.x * 1023.0 - 420.0) / 261.5) * (0.18 + 0.01) - 0.01) : (in.x * 1023.0 - 95.0) * 0.01125000 / (171.2102946929 - 95.0),
@@ -562,7 +575,7 @@ __DEVICE__ float3 fromSonySLog3(float3 in) {
     );
 }
 
-__DEVICE__ float3 toSonySLog3(float3 in) {
+__DEVICE__ float3 linToLogSonySLog3(float3 in) {
     return make_float3(
         in.x >= 0.01125000 ? (420.0f + _log10f((in.x + 0.01) / (0.18 + 0.01)) * 261.5f) / 1023.0f : (in.x * (171.2102946929f - 95.0f) / 0.01125000f + 95.0f) / 1023.0f,
         in.y >= 0.01125000 ? (420.0f + _log10f((in.y + 0.01) / (0.18 + 0.01)) * 261.5f) / 1023.0f : (in.y * (171.2102946929f - 95.0f) / 0.01125000f + 95.0f) / 1023.0f,
@@ -570,73 +583,118 @@ __DEVICE__ float3 toSonySLog3(float3 in) {
     );
 }
 
-//Main Function
+// Helper Functions
+__DEVICE__ float3 exposureFunc(float3 in, float stops) {
+    return in * _powf(2.0f, stops);
+}
 
-DEFINE_UI_PARAMS(p_Exp, Exposure, DCTLUI_SLIDER_FLOAT, 0, -10, 10, 0.001)
-DEFINE_UI_PARAMS(p_TransferFunction, Transfer Function, DCTLUI_COMBO_BOX, 3, {aces_cc, aces_cct, appleLog, arriLogC3, arriLogC4, blackmagicFilmGen5, canonlog, canonlog2, canonlog3, cineon, davinciIntermediate, djiDlog, filmlightTlog, flog, flog2, goProProtune, leicaLog, lin, nikonNlog, panasonicVlog, redlog3g10, sonySlog, sonySlog2, sonySlog3}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen 5, Canon Log, Canon Log 2, Canon Log 3, Cineon Film Log, DaVinci Intermediate, DJI D-Log, Filmlight T-Log, FujiFilm F-Log, FujiFilm F-Log2, GoPro Protune, Leica L-Log, Linear, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
+__DEVICE__ float luminance(float r, float g, float b) {
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+}
 
+__DEVICE__ float maskFunc(float r, float g, float b, int chanType, float stren, bool invert) {
+    float adjustedStren = stren * 6.0f;
+    adjustedStren = adjustedStren > 1.0f ? _powf(2.0f, adjustedStren - 1.0f) : adjustedStren;
+    float lum = invert ? _powf(1.0f - luminance(r, g, b), adjustedStren) : _powf(luminance(r, g, b), adjustedStren);
+    float mask = chanType == 0 ? lum : chanType == 1 ? _powf(invert ? 1.0f - r : r, adjustedStren) : chanType == 2 ? _powf(invert ? 1.0f - g : g, adjustedStren) : _powf(invert ? 1.0f - b : b, adjustedStren);
+    return _saturatef(mask);
+}
+
+__DEVICE__ float3 adjustSaturation(float3 rgb, float sat) {
+    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+    float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
+    float currentSat = ach == 0.0f ? 0.0f : (ach - minColor) / ach;
+    float adjSatEffect = sat > 0 ? 1.0f + (1.0f - currentSat) * sat : 1.0f + currentSat * sat;
+    float3 dist = ach == 0.0f ? 0.0f : (ach - rgb) / _fabs(ach);
+    dist *= adjSatEffect;
+    return ach - dist * _fabs(ach);
+}
+
+__DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
+    if (transferFunc == aces_cc) return logToLinACEScc(in);
+    if (transferFunc == aces_cct) return logToLinACEScct(in);
+    if (transferFunc == appleLog) return logToLinAppleLogProfile(in);
+    if (transferFunc == arriLogC3) return logToLinArriLogC3(in);
+    if (transferFunc == arriLogC4) return logToLinArriLogC4(in);
+    if (transferFunc == blackmagicFilmGen5) return logToLinBlackmagicFilmGen5(in);
+    if (transferFunc == canonlog) return logToLinCanonLog(in);
+    if (transferFunc == canonlog2) return logToLinCanonLog2(in);
+    if (transferFunc == canonlog3) return logToLinCanonLog3(in);
+    if (transferFunc == cineon) return logToLinCineon(in);
+    if (transferFunc == davinciIntermediate) return logToLinDavinciIntermediate(in);
+    if (transferFunc == djiDlog) return logToLinDJIDLog(in);
+    if (transferFunc == filmlightTlog) return logToLinFilmLightTLog(in);
+    if (transferFunc == flog) return logToLinFLog(in);
+    if (transferFunc == flog2) return logToLinFLog2(in);
+    if (transferFunc == goProProtune) return logToLinProtune(in);
+    if (transferFunc == leicaLog) return logToLinLeicaLog(in);
+    if (transferFunc == lin) return in;
+    if (transferFunc == nikonNlog) return logToLinNLog(in);
+    if (transferFunc == panasonicVlog) return logToLinVLog(in);
+    if (transferFunc == redlog3g10) return logToLinRedLog3g10(in);
+    if (transferFunc == sonySlog) return logToLinSonySLog(in);
+    if (transferFunc == sonySlog2) return logToLinSonySLog2(in);
+    if (transferFunc == sonySlog3) return logToLinSonySLog3(in);
+    return in; // Default case, return input as-is
+}
+
+__DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
+    if (transferFunc == aces_cc) return linToLogACEScc(in);
+    if (transferFunc == aces_cct) return linToLogACEScct(in);
+    if (transferFunc == appleLog) return linToLogAppleLogProfile(in);
+    if (transferFunc == arriLogC3) return linToLogArriLogC3(in);
+    if (transferFunc == arriLogC4) return linToLogArriLogC4(in);
+    if (transferFunc == blackmagicFilmGen5) return linToLogBlackmagicFilmGen5(in);
+    if (transferFunc == canonlog) return linToLogCanonLog(in);
+    if (transferFunc == canonlog2) return linToLogCanonLog2(in);
+    if (transferFunc == canonlog3) return linToLogCanonLog3(in);
+    if (transferFunc == cineon) return linToLogCineon(in);
+    if (transferFunc == davinciIntermediate) return linToLogDavinciIntermediate(in);
+    if (transferFunc == djiDlog) return linToLogDJIDLog(in);
+    if (transferFunc == filmlightTlog) return linToLogFilmLightTLog(in);
+    if (transferFunc == flog) return linToLogFLog(in);
+    if (transferFunc == flog2) return linToLogFLog2(in);
+    if (transferFunc == goProProtune) return linToLogProtune(in);
+    if (transferFunc == leicaLog) return linToLogLeicaLog(in);
+    if (transferFunc == lin) return in;
+    if (transferFunc == nikonNlog) return linToLogNLog(in);
+    if (transferFunc == panasonicVlog) return linToLogVLog(in);
+    if (transferFunc == redlog3g10) return linToLogRedLog3g10(in);
+    if (transferFunc == sonySlog) return linToLogSonySLog(in);
+    if (transferFunc == sonySlog2) return linToLogSonySLog2(in);
+    if (transferFunc == sonySlog3) return linToLogSonySLog3(in);
+    return in; // Default case, return input as-is
+}
+
+// Transform image
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
-    float3 out = make_float3(p_R, p_G, p_B);
+    float3 in = make_float3(p_R, p_G, p_B);
 
-    // If exposure isn't changed, return original image
-    //if (p_Exp == 0) return out;
+    // Convert to linear
+    float3 lin = convertToLinear(in, p_TransferFunction);
 
-    // Go from the encoded Transfer Function to linear
-    if (p_TransferFunction == aces_cc)      out = fromACEScc(out);
-    if (p_TransferFunction == aces_cct)     out = fromACEScct(out);
-    if (p_TransferFunction == appleLog)     out = fromAppleLogProfile(out);
-    if (p_TransferFunction == arriLogC3)    out = fromArriLogC3(out);
-    if (p_TransferFunction == arriLogC4)    out = fromArriLogC4(out);
-    if (p_TransferFunction == blackmagicFilmGen5) out = fromBlackmagicFilmGen5(out);
-    if (p_TransferFunction == canonlog)    out = fromCanonLog(out);
-    if (p_TransferFunction == canonlog2)   out = fromCanonLog2(out);
-    if (p_TransferFunction == canonlog3)   out = fromCanonLog3(out);
-    if (p_TransferFunction == cineon)       out = fromCineon(out);
-    if (p_TransferFunction == davinciIntermediate) out = fromDavinciIntermediate(out);
-    if (p_TransferFunction == djiDlog)      out = fromDJIDLog(out);
-    if (p_TransferFunction == filmlightTlog)     out = fromFilmLightTLog(out);
-    if (p_TransferFunction == flog)      out = fromFLog(out);
-    if (p_TransferFunction == flog2)      out = fromFLog2(out);
-    if (p_TransferFunction == goProProtune) out = fromProtune(out);
-    if (p_TransferFunction == leicaLog) out = fromLeicaLog(out);
-    if (p_TransferFunction == nikonNlog)    out = fromNLog(out);
-    if (p_TransferFunction == panasonicVlog)      out = fromVLog(out);
-    if (p_TransferFunction == redlog3g10)   out = fromRedLog3g10(out);
-    if (p_TransferFunction == sonySlog)     out = fromSonySLog(out);
-    if (p_TransferFunction == sonySlog2)    out = fromSonySLog2(out);
-    if (p_TransferFunction == sonySlog3)    out = fromSonySLog3(out);
+    // Apply global exposure
+    float3 globalExp = exposureFunc(lin, p_Exp);
+    float3 logGlobalExp = convertToLog(globalExp, p_TransferFunction);
 
-    // Apply exposure in stops
-    out *= _powf(2, p_Exp);
+    // Adjust highlight exposure
+    float3 expHigh = exposureFunc(globalExp, p_ExpHigh);
+    float3 satHigh = adjustSaturation(expHigh, HighlightSaturation);
+    float3 logHigh = convertToLog(satHigh, p_TransferFunction);
+    float maskH = maskFunc(in.x, in.y, in.z, chanTypeH, maskStrenHigh, false);
+    float3 maskedHigh = logHigh * maskH + logGlobalExp * (1.0f - maskH);
 
-    // Go from linear back to the encoded Transfer Function
-    if (p_TransferFunction == aces_cc)      out = toACEScc(out);
-    if (p_TransferFunction == aces_cct)     out = toACEScct(out);
-    if (p_TransferFunction == appleLog)     out = toAppleLogProfile(out);
-    if (p_TransferFunction == arriLogC3)    out = toArriLogC3(out);
-    if (p_TransferFunction == arriLogC4)    out = toArriLogC4(out);
-    if (p_TransferFunction == blackmagicFilmGen5) out = toBlackmagicFilmGen5(out);
-    if (p_TransferFunction == canonlog)    out = toCanonLog(out);
-    if (p_TransferFunction == canonlog2)   out = toCanonLog2(out);
-    if (p_TransferFunction == canonlog3)   out = toCanonLog3(out);
-    if (p_TransferFunction == cineon)       out = toCineon(out);
-    if (p_TransferFunction == davinciIntermediate) out = toDavinciIntermediate(out);
-    if (p_TransferFunction == djiDlog)      out = toDJIDLog(out);
-    if (p_TransferFunction == filmlightTlog)      out = toFilmLightTLog(out);
-    if (p_TransferFunction == flog)      out = toFLog(out);
-    if (p_TransferFunction == flog2)      out = toFLog2(out);
-    if (p_TransferFunction == goProProtune) out = toProtune(out);
-    if (p_TransferFunction == leicaLog) out = toLeicaLog(out);
-    if (p_TransferFunction == nikonNlog)    out = toNLog(out);
-    if (p_TransferFunction == panasonicVlog)  out = toVLog(out);
-    if (p_TransferFunction == redlog3g10)   out = toRedLog3g10(out);
-    if (p_TransferFunction == sonySlog)     out = toSonySLog(out);
-    if (p_TransferFunction == sonySlog2)    out = toSonySLog2(out);
-    if (p_TransferFunction == sonySlog3)    out = toSonySLog3(out);
+    // Adjust shadow exposure
+    float3 expShad = exposureFunc(globalExp, p_ExpShad);
+    float3 satShad = adjustSaturation(expShad, ShadowSaturation);
+    float3 logShad = convertToLog(satShad, p_TransferFunction);
+    float maskS = maskFunc(in.x, in.y, in.z, chanTypeS, maskStrenShad, true);
+    float3 maskedShad = logShad * maskS + maskedHigh * (1.0f - maskS);
 
-    // Draw a green line at the bottom to indicate the DCTL is running without errors
+    if (showMask) {
+        return toggleMask ? make_float3(maskH, maskH, maskH) : make_float3(maskS, maskS, maskS);
+    }
 
-    if (p_Y < 10) out = make_float3(0, 1, 0);
-
-    return out;
+    // Return the final result
+    return maskedShad;
 }
