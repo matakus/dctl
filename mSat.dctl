@@ -1,89 +1,70 @@
-#line 2 // This line makes line numbers appear correctly in the log file
+#line 2 //Debugging line
 
-//Saturation Enhancer DCTL // 1.0 mc
+// Saturation Enhancer DCTL
 
 // Define user interface parameters for DCTL
-DEFINE_UI_PARAMS(Saturation, Saturation, DCTLUI_SLIDER_FLOAT, 0, -1, 1.0, 0.1) // Control for adjusting saturation
-DEFINE_UI_PARAMS(Vibrance, Vibrance, DCTLUI_SLIDER_FLOAT, 0.0, -1.0, 1.0, 0.05) // Control for adjusting vibrance
-DEFINE_UI_PARAMS(highlightMask, Highlight Recovery, DCTLUI_SLIDER_FLOAT, 0, 0.0, 1, 0.01) // Slider for highlight recovery strength
-DEFINE_UI_PARAMS(shadowMask, Shadow Recovery, DCTLUI_SLIDER_FLOAT, 0, 0.0, 1, 0.01) // Slider for shadow recovery strength
-DEFINE_UI_PARAMS(Mix, Mix, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.01) // Control for mixing processed and original image
-DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0) // Checkbox to toggle viewing of the mask
-
+DEFINE_UI_PARAMS(Saturation, Saturation, DCTLUI_SLIDER_FLOAT, 0, -1, 1.0, 0.1)       // Saturation adjustment control
+DEFINE_UI_PARAMS(Vibrance, Vibrance, DCTLUI_SLIDER_FLOAT, 0.0, -1.0, 1.0, 0.05)      // Vibrance adjustment control
+DEFINE_UI_PARAMS(highlightMask, Highlight Recovery, DCTLUI_SLIDER_FLOAT, 0, 0.0, 1, 0.01) // Highlight recovery strength control
+DEFINE_UI_PARAMS(shadowMask, Shadow Recovery, DCTLUI_SLIDER_FLOAT, 0, 0.0, 1, 0.01)  // Shadow recovery strength control
+DEFINE_UI_PARAMS(Mix, Mix, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.01)                 // Control for mixing processed and original image
+DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)                           // Checkbox to toggle viewing of the mask
 
 // Function to calculate highlight mask based on input RGB and slider value
 __DEVICE__ float hMask(float R, float G, float B, float sliderValue) {
-    // Sets the power valube for the mask. Lower increases affect with 1.0 being standard luminance
-    float powerValue = 1.0f; 
-    // Calculate luminance to determine brightness
-    float luminance = 0.299f * R + 0.587f * G + 0.114f * B; // Standard luminance calculation
-    // Increase the effect of the slider and luminance more aggressively depending on power value
-    float multiplier = sliderValue * _powf(luminance, powerValue); // Using a power < 1 to increase sensitivity in brighter areas, lower increases power
-    // Calculate the mask
-    float mask = _saturatef(_powf(_fmaxf(1.0f-R, 0.0f), multiplier) *
-                            _powf(_fmaxf(1.0f-G, 0.0f), multiplier) *
-                            _powf(_fmaxf(1.0f-B, 0.0f), multiplier));
-    return mask;
+    float luminance = 0.299f * R + 0.587f * G + 0.114f * B;        // Calculate luminance
+    float multiplier = sliderValue * _powf(luminance, 1.0f);       // Compute multiplier based on luminance
+    return _saturatef(_powf(_fmaxf(1.0f - R, 0.0f), multiplier) *  // Calculate highlight mask
+                      _powf(_fmaxf(1.0f - G, 0.0f), multiplier) *
+                      _powf(_fmaxf(1.0f - B, 0.0f), multiplier));
 }
 
 // Function to calculate shadow mask based on input RGB and slider value
 __DEVICE__ float sMask(float R, float G, float B, float sliderValue) {
-    float powerValue = 1.0f; 
-    float luminance = 0.299f * R + 0.587f * G + 0.114f * B; // Standard luminance calculation
-    float multiplier = sliderValue * (1.0f - _powf(luminance, powerValue)); // Reduce effect as luminance increases
-    float mask = _saturatef(_powf(_fmaxf(R, 0.0f), multiplier / 3.0f) *
-                            _powf(_fmaxf(G, 0.0f), multiplier / 3.0f) *
-                            _powf(_fmaxf(B, 0.0f), multiplier / 3.0f));
-    return mask;
+    float luminance = 0.299f * R + 0.587f * G + 0.114f * B;        // Calculate luminance
+    float multiplier = sliderValue * (1.0f - _powf(luminance, 1.0f)); // Compute multiplier based on luminance
+    return _saturatef(_powf(_fmaxf(R, 0.0f), multiplier / 3.0f) *  // Calculate shadow mask
+                      _powf(_fmaxf(G, 0.0f), multiplier / 3.0f) *
+                      _powf(_fmaxf(B, 0.0f), multiplier / 3.0f));
 }
 
-__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) 
-{
-    // Ensure initial RGB values are non-negative
-    float3 rgb = make_float3(_fmaxf(p_R, 0.0f), _fmaxf(p_G, 0.0f), _fmaxf(p_B, 0.0f));
-    
-    // Calculate the maximum value among RGB components to determine the achromatic axis (brightness level)
-    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+// Main transformation function
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    float3 rgb = make_float3(_fmaxf(p_R, 0.0f), _fmaxf(p_G, 0.0f), _fmaxf(p_B, 0.0f)); // Ensure initial RGB values are non-negative
+    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));                                  // Calculate the achromatic axis (brightness level)
+    float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));                             // Minimum value among RGB components
+    float currentSaturation = ach == 0.0f ? 0.0f : (ach - minColor) / ach;            // Compute current saturation
 
-    // Compute the current saturation considering no value should fall below zero
-    float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
-    float currentSaturation = ach == 0.0f ? 0.0f : (ach - minColor) / ach;
-
-    // Adjust the application of Vibrance based on its positive or negative value
-    // Basically if (statement) is (statement) then  do this (statement) otherwise, do (statement)
+    // Adjust the application of Vibrance
     float adjustedSaturationEffect = Vibrance > 0 ? 
         1.0f + (1.0f - currentSaturation) * Vibrance : 
         1.0f + currentSaturation * Vibrance;
 
-    // Compute distance from the achromatic axis for saturation adjustment ensuring all computations remain non-negative
+    // Compute distance from the achromatic axis for saturation adjustment
     float3 distance = ach == 0.0f ? 0.0f : (ach - rgb) / _fabs(ach);
     distance *= (1.0f + Saturation) * adjustedSaturationEffect;
 
-    // Calculate new RGB values with adjusted saturation, ensuring results are non-negative
+    // Calculate new RGB values with adjusted saturation
     float3 newRGB = make_float3(_fmaxf(ach - distance.x * _fabs(ach), 0.0f),
                                 _fmaxf(ach - distance.y * _fabs(ach), 0.0f),
                                 _fmaxf(ach - distance.z * _fabs(ach), 0.0f));
 
-    // Mix the new and original RGB values based on the Mix slider, ensuring non-negative results
+    // Mix the new and original RGB values
     newRGB = rgb * (1.0f - Mix) + newRGB * Mix;
 
     // Calculate high and low masks for highlight and shadow recovery
     float highMask = 1.0f - hMask(rgb.x, rgb.y, rgb.z, highlightMask);
     float lowMask = 1.0f - sMask(rgb.x, rgb.y, rgb.z, shadowMask);
-
-    // Combine the masks and normalize if their sum exceeds 1.0
-    float combinedMask = _fminf(highMask + lowMask, 1.0f);
+    float combinedMask = _fminf(highMask + lowMask, 1.0f); // Combine the masks and normalize if needed
 
     // Combine high and low masks, ensuring the result is non-negative
-    float3 outputRGB = (rgb * combinedMask + (1.0f - combinedMask) * newRGB);
+    float3 outputRGB = rgb * combinedMask + (1.0f - combinedMask) * newRGB;
+    outputRGB = make_float3(_fmaxf(outputRGB.x, 0.0f), _fmaxf(outputRGB.y, 0.0f), _fmaxf(outputRGB.z, 0.0f)); // Ensure no negative values
 
-    //Make sure there are no negative values output and make a float3 to output
-    outputRGB = make_float3(_fmaxf(outputRGB.x, 0.0f), _fmaxf(outputRGB.y, 0.0f), _fmaxf(outputRGB.z, 0.0f));
-
-    // Check if Show mask box is ticked, if it is, do this
+    // Check if Show mask box is ticked
     if (showMask) {
-        return make_float3(combinedMask, combinedMask, combinedMask);
+        return make_float3(combinedMask, combinedMask, combinedMask); // Output the mask if enabled
     }
-    //Output the final RGB values as a float3
-    return outputRGB;
+
+    return outputRGB; // Output the final RGB values
 }
