@@ -1,147 +1,17 @@
 #line 2 // This line makes line numbers appear correctly in the log file
+#include "zCCTF.dctl"
 
 // Define UI Parameters
-DEFINE_UI_PARAMS(p_ColorspaceIn, Colorspace In, DCTLUI_COMBO_BOX, 1, {AWGIn, DWGIn, Rec709In}, {Arri Wide Gamut, DaVinci Wide Gamut, Rec.709})
-DEFINE_UI_PARAMS(p_ColorspaceOut, Colorspace Out, DCTLUI_COMBO_BOX, 2, {AWGOut, DWGOut, Rec709Out}, {Arri Wide Gamut, DaVinci Wide Gamut, Rec.709})
-DEFINE_UI_PARAMS(p_TransferFunctionIn, Gamma In, DCTLUI_COMBO_BOX, 1, {arriLogC3In, davinciIntermediateIn, rec709In}, {Arri LogC3, DaVinci Intermediate, Rec.709})
-DEFINE_UI_PARAMS(p_TransferFunctionOut, Gamma Out, DCTLUI_COMBO_BOX, 2, {arriLogC3Out, davinciIntermediateOut, rec709Out}, {Arri LogC3, DaVinci Intermediate, Rec.709})
-DEFINE_UI_PARAMS(p_ToneMapping, Tone Mapping, DCTLUI_COMBO_BOX, 1, {toneMapACESOption, toneMapDavinciOption, toneMapFilmicOption, toneMapReinhardOption, toneMapNone}, {ACES, DaVinci, Filmic, Reinhard, None})
+DEFINE_UI_PARAMS(p_ColorspaceIn, Colorspace In, DCTLUI_COMBO_BOX, 7, {ACES_CGIn, ACES_CCTIn, AppleLogIn, ArriWideGamut3In, ArriWideGamut4In, BlackMagicWideGamutGen5In, CanonCinemaGamutIn, DaVinciWideGamutIn, DCIP3In, FilmLightEGamutIn, FujiFGamutIn, P3D65In, PanasonicVGamutIn, Rec2020In, Rec709In, RedWideGamutIn, SGamut3In, SGamut3CineIn, SGamut3VeniceIn, SGamut3VeniceCineIn}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
+DEFINE_UI_PARAMS(p_TransferFunctionIn, Gamma In, DCTLUI_COMBO_BOX, 10, {acesCCIn, acesCCTIn, appleLogIn, arriLogC3In, arriLogC4In, blackmagicFilmGen5In, canonLogIn, canonLog2In, canonLog3In, cineonIn, davinciIntermediateIn, djiDLogIn, filmLightTLogIn, fLogIn, fLog2In, goproProtuneIn, leicaLogIn, nLogIn, rec2020In, rec709In, redLog3G10In, sonySLogIn, sonySLog2In, sonySLog3In, st2084PQIn, vLogIn}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
+DEFINE_UI_PARAMS(p_ColorspaceOut, Colorspace Out, DCTLUI_COMBO_BOX, 14, {ACES_CGOut, ACES_CCTOut, AppleLogOut, ArriWideGamut3Out, ArriWideGamut4Out, BlackMagicWideGamutGen5Out, CanonCinemaGamutOut, DaVinciWideGamutOut, DCIP3Out, FilmLightEGamutOut, FujiFGamutOut, P3D65Out, PanasonicVGamutOut, Rec2020Out, Rec709Out, RedWideGamutOut, SGamut3Out, SGamut3CineOut, SGamut3VeniceOut, SGamut3VeniceCineOut}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
+DEFINE_UI_PARAMS(p_TransferFunctionOut, Gamma Out, DCTLUI_COMBO_BOX, 19, {acesCCOut, acesCCTOut, appleLogOut, arriLogC3Out, arriLogC4Out, blackmagicFilmGen5Out, canonLogOut, canonLog2Out, canonLog3Out, cineonOut, davinciIntermediateOut, djiDLogOut, filmLightTLogOut, fLogOut, fLog2Out, goproProtuneOut, leicaLogOut, nLogOut, rec2020Out, rec709Out, redLog3G10Out, sonySLogOut, sonySLog2Out, sonySLog3Out, st2084PQOut, vLogOut}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ), Panasonic V-Log})
+DEFINE_UI_PARAMS(p_ToneMapping, Tone Mapping, DCTLUI_COMBO_BOX, 3, {toneMapACESOption, toneMapAcesHybridOption, toneMapDavinciOption, toneMapDavinciHybridOption, toneMapFilmicOption,  toneMapFilmicHybridOption, toneMapNone, toneMapReinhardOption}, {ACES, ACES Hybrid, DaVinci, Davinci Hybrid,  Filmic,  Filmic Hybrid, None, Reinhard})
 DEFINE_UI_PARAMS(p_gamutCompression, Gamut Compression, DCTLUI_COMBO_BOX, 1, {gamutCompNone, gamutCompSaturationPreserving}, {None, Saturation Preserving})
-DEFINE_UI_PARAMS(threshold, Threshold, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.0)
-DEFINE_UI_PARAMS(max_distance_r, Max Distance R, DCTLUI_SLIDER_FLOAT, 1.2, 1.0, 2.0, 0.0)
-DEFINE_UI_PARAMS(max_distance_g, Max Distance G, DCTLUI_SLIDER_FLOAT, 1.2, 1.0, 2.0, 0.0)
-DEFINE_UI_PARAMS(max_distance_b, Max Distance B, DCTLUI_SLIDER_FLOAT, 1.2, 1.0, 2.0, 0.0)
-DEFINE_UI_PARAMS(aggressiveness, Aggressiveness, DCTLUI_SLIDER_FLOAT, 2.0, 1.0, 5.0, 0.0)
-DEFINE_UI_PARAMS(luminance_strength, Luminance Strength, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.0)
-
-
-
-// Transfer Functions
-// Converts input from log to linear and linear to log
-
-////// ARRI //////
-__DEVICE__ float3 logToLinArriLogC3(float3 in) {
-    float3 out;
-    const float cut = 0.010591f, a = 5.555556f, b = 0.052272f, c = 0.247190f, d = 0.385537f, e = 5.367655f, f = 0.092809f, th = e * cut + f;
-    out.x = (in.x > th) ? (_powf(10.0f, (in.x - d) / c) - b) / a : (in.x - f) / e;
-    out.y = (in.y > th) ? (_powf(10.0f, (in.y - d) / c) - b) / a : (in.y - f) / e;
-    out.z = (in.z > th) ? (_powf(10.0f, (in.z - d) / c) - b) / a : (in.z - f) / e;
-    return out;
-}
-
-__DEVICE__ float3 linToLogArriLogC3(float3 in) {
-    float3 out;
-    const float cut = 0.010591f, a = 5.555556f, b = 0.052272f, c = 0.247190f, d = 0.385537f, e = 5.367655f, f = 0.092809f;
-    out.x = (in.x > cut) ? c * _log10f(a * in.x + b) + d : e * in.x + f;
-    out.y = (in.y > cut) ? c * _log10f(a * in.y + b) + d : e * in.y + f;
-    out.z = (in.z > cut) ? c * _log10f(a * in.z + b) + d : e * in.z + f;
-    return out;
-}
-
-////// BLACKMAGIC //////
-__DEVICE__ float3 logToLinDavinciIntermediate(float3 in) {
-    const float a = 0.0075f, b = 7.0f, c = 0.07329248f, m = 10.44426855f, log_cut = 0.02740668f;
-    return make_float3(
-        in.x > log_cut ? _powf(2.0f, (in.x / c) - b) - a : in.x / m,
-        in.y > log_cut ? _powf(2.0f, (in.y / c) - b) - a : in.y / m,
-        in.z > log_cut ? _powf(2.0f, (in.z / c) - b) - a : in.z / m
-    );
-}
-
-__DEVICE__ float3 linToLogDavinciIntermediate(float3 in) {
-    const float a = 0.0075f, b = 7.0f, c = 0.07329248f, m = 10.44426855f, lin_cut = 0.00262409f;
-    return make_float3(
-        in.x > lin_cut ? (_log2f(in.x + a) + b) * c : in.x * m,
-        in.y > lin_cut ? (_log2f(in.y + a) + b) * c : in.y * m,
-        in.z > lin_cut ? (_log2f(in.z + a) + b) * c : in.z * m
-    );
-}
-
-////// Rec.709 //////
-__DEVICE__ float3 logToLinRec709(float3 V) {
-    float3 L;
-    L.x = (V.x < 0.081f) ? V.x / 4.5f : _powf((V.x + 0.099f) / 1.099f, 1.0f / 0.45f);
-    L.y = (V.y < 0.081f) ? V.y / 4.5f : _powf((V.y + 0.099f) / 1.099f, 1.0f / 0.45f);
-    L.z = (V.z < 0.081f) ? V.z / 4.5f : _powf((V.z + 0.099f) / 1.099f, 1.0f / 0.45f);
-    return L;
-}
-
-__DEVICE__ float3 linToLogRec709(float3 L) {
-    float3 V;
-    V.x = (L.x < 0.018f) ? 4.5f * L.x : 1.099f * _powf(L.x, 0.45f) - 0.099f;
-    V.y = (L.y < 0.018f) ? 4.5f * L.y : 1.099f * _powf(L.y, 0.45f) - 0.099f;
-    V.z = (L.z < 0.018f) ? 4.5f * L.z : 1.099f * _powf(L.z, 0.45f) - 0.099f;
-    return V;
-}
-
-// Colorspace Conversion Functions
-__DEVICE__ float3 ArriWideGamutRGBtoXYZ(float3 in) {
-    const float AWGtoXYZ[9] = {0.638008f, 0.214704f, 0.097744f,
-                               0.291954f, 0.823841f, -0.115795f,
-                               0.002798f, -0.067034f, 1.153294f};
-    float3 out;
-    out.x = (AWGtoXYZ[0] * in.x) + (AWGtoXYZ[1] * in.y) + (AWGtoXYZ[2] * in.z);
-    out.y = (AWGtoXYZ[3] * in.x) + (AWGtoXYZ[4] * in.y) + (AWGtoXYZ[5] * in.z);
-    out.z = (AWGtoXYZ[6] * in.x) + (AWGtoXYZ[7] * in.y) + (AWGtoXYZ[8] * in.z);
-    return out;
-}
-
-__DEVICE__ float3 XYZtoArriWideGamutRGB(float3 in) {
-    const float XYZtoAWG[9] = {1.789066f, -0.482534f, -0.200076f,
-                               -0.639849f, 1.3964f, 0.194432f,
-                               -0.041532f, 0.082335f, 0.878868f};
-    float3 out;
-    out.x = (XYZtoAWG[0] * in.x) + (XYZtoAWG[1] * in.y) + (XYZtoAWG[2] * in.z);
-    out.y = (XYZtoAWG[3] * in.x) + (XYZtoAWG[4] * in.y) + (XYZtoAWG[5] * in.z);
-    out.z = (XYZtoAWG[6] * in.x) + (XYZtoAWG[7] * in.y) + (XYZtoAWG[8] * in.z);
-    return out;
-}
-
-__DEVICE__ float3 DavinciWideGamutRGBtoXYZ(float3 in) {
-    const float DWGtoXYZ[9] = {0.70062239f, 0.14877482f, 0.10105872f,
-                               0.27411851f, 0.8736319f, -0.14775041f,
-                               -0.09896291f, -0.13789533f, 1.32591599f};
-    float3 out;
-    out.x = (DWGtoXYZ[0] * in.x) + (DWGtoXYZ[1] * in.y) + (DWGtoXYZ[2] * in.z);
-    out.y = (DWGtoXYZ[3] * in.x) + (DWGtoXYZ[4] * in.y) + (DWGtoXYZ[5] * in.z);
-    out.z = (DWGtoXYZ[6] * in.x) + (DWGtoXYZ[7] * in.y) + (DWGtoXYZ[8] * in.z);
-    return out;
-}
-
-__DEVICE__ float3 XYZtoDavinciWideGamutRGB(float3 in) {
-    const float XYZtoDWG[9] = {1.51667204f, -0.28147805f, -0.14696363f,
-                               -0.4649171f, 1.25142378f, 0.17488461f,
-                               0.06484905f, 0.10913934f, 0.76141462f};
-    float3 out;
-    out.x = (XYZtoDWG[0] * in.x) + (XYZtoDWG[1] * in.y) + (XYZtoDWG[2] * in.z);
-    out.y = (XYZtoDWG[3] * in.x) + (XYZtoDWG[4] * in.y) + (XYZtoDWG[5] * in.z);
-    out.z = (XYZtoDWG[6] * in.x) + (XYZtoDWG[7] * in.y) + (XYZtoDWG[8] * in.z);
-    return out;
-}
-
-__DEVICE__ float3 Rec709RGBtoXYZ(float3 in) {
-    const float Rec709toXYZ[9] = {0.41239080f, 0.35758434f, 0.18048079f,
-                                  0.21263901f, 0.71516868f, 0.07219232f,
-                                  0.01933082f, 0.11919478f, 0.95053215f};
-    float3 out;
-    out.x = (Rec709toXYZ[0] * in.x) + (Rec709toXYZ[1] * in.y) + (Rec709toXYZ[2] * in.z);
-    out.y = (Rec709toXYZ[3] * in.x) + (Rec709toXYZ[4] * in.y) + (Rec709toXYZ[5] * in.z);
-    out.z = (Rec709toXYZ[6] * in.x) + (Rec709toXYZ[7] * in.y) + (Rec709toXYZ[8] * in.z);
-    return out;
-}
-
-__DEVICE__ float3 XYZtoRec709RGB(float3 in) {
-    const float XYZtoRec709[9] = {3.24096994f, -1.53738318f, -0.49861076f,
-                                  -0.96924364f, 1.87596750f, 0.04155506f,
-                                  0.05563008f, -0.20397696f, 1.05697151f};
-    float3 out;
-    out.x = (XYZtoRec709[0] * in.x) + (XYZtoRec709[1] * in.y) + (XYZtoRec709[2] * in.z);
-    out.y = (XYZtoRec709[3] * in.x) + (XYZtoRec709[4] * in.y) + (XYZtoRec709[5] * in.z);
-    out.z = (XYZtoRec709[6] * in.x) + (XYZtoRec709[7] * in.y) + (XYZtoRec709[8] * in.z);
-    return out;
-}
 
 // Tone Mapping Functions
+
+// Reinhard Tone Mapping
 __DEVICE__ float3 applyReinhardToneMapping(float3 in) {
     float luminance = (0.2126f * in.x) + (0.7152f  * in.y) + (0.0722f * in.z);
     float toneMappedLuminance = luminance / (1.0f + luminance);
@@ -149,6 +19,7 @@ __DEVICE__ float3 applyReinhardToneMapping(float3 in) {
     return toneMappedColor;
 }
 
+// DaVinci Tone Mapping
 __DEVICE__ float powf(float base, float exp) {
     return _copysignf(_powf(_fabs(base), exp), base);
 }
@@ -179,7 +50,7 @@ __DEVICE__ float3 applyDavinciToneMapping(float3 in) {
     // Constraint 3: h(mid_out) = mid_out
     float b = (a / (mid_gray_out - c)) * (1.0 - ((mid_gray_out - c) / a)) * mid_gray_out;
     // Constraint 4: h'(mid_out) = slope
-    float gamma = slope * powf((mid_gray_out + b), 2.0) / (a * b);
+    float gamma = slope * _powf((mid_gray_out + b), 2.0) / (a * b);
 
     // h(x) = g(m_i * ((x/m_i)**gamma))
     out.x = rolloff_function(contrast(out.x, mid_gray_out, gamma), a, b, c);
@@ -188,6 +59,7 @@ __DEVICE__ float3 applyDavinciToneMapping(float3 in) {
 
     return out;
 }
+
 
 // ACES Tone Mapping Functions
 __DEVICE__ float3 mul_aces_input_matrix(float3 v) {
@@ -217,7 +89,7 @@ __DEVICE__ float3 applyAcesToneMapping(float3 color) {
 }
 
 // Filmic Tone Mapping Function
-__DEVICE__ float3 filmicTonemap(float3 x) {
+__DEVICE__ float3 applyFilmicToneMapping(float3 x) {
     const float A = 0.22f;
     const float B = 0.30f;
     const float C = 0.10f;
@@ -232,6 +104,63 @@ __DEVICE__ float3 filmicTonemap(float3 x) {
 
     return color;
 }
+
+// Function to calculate saturation
+__DEVICE__ float calculateSaturation(float3 in) {
+    float max_rgb = max(in.x, max(in.y, in.z));
+    float min_rgb = min(in.x, min(in.y, in.z));
+    return (max_rgb - min_rgb) / max_rgb;
+}
+
+// Main blending function
+__DEVICE__ float3 blendToneMappings(float3 in, int toneMappingOption) {
+    // Calculate saturation from linear input
+    float saturation = calculateSaturation(in);
+
+    // Apply Reinhard tone mapping
+    float3 reinhard = applyReinhardToneMapping(in);
+
+    // Apply selected tone mapping
+    float3 selectedToneMapped;
+    if (toneMappingOption == toneMapACESOption) {
+        selectedToneMapped = applyAcesToneMapping(in);
+    } else if (toneMappingOption == toneMapDavinciOption) {
+        selectedToneMapped = applyDavinciToneMapping(in);
+    } else if (toneMappingOption == toneMapFilmicOption) {
+        selectedToneMapped = applyFilmicToneMapping(in);
+    } else if (toneMappingOption == toneMapReinhardOption) {
+        return reinhard; // Only Reinhard tone mapping
+    } else if (toneMappingOption == toneMapNone) {
+        return in; // No tone mapping
+    } else if (toneMappingOption == toneMapDavinciHybridOption) {
+        // Hybrid (DaVinci + Reinhard)
+        selectedToneMapped = applyDavinciToneMapping(in);
+    } else if (toneMappingOption == toneMapFilmicHybridOption) {
+        // Hybrid Filmic (Filmic + Reinhard)
+        selectedToneMapped = applyFilmicToneMapping(in);
+    } else if (toneMappingOption == toneMapAcesHybridOption) {
+        // Hybrid ACES (ACES + Reinhard)
+        selectedToneMapped = applyAcesToneMapping(in);
+    } else {
+        selectedToneMapped = in; // Default to input if not matched
+    }
+
+    // Blend between Reinhard and selected tone mapping based on saturation
+    float3 blended;
+    float reinhard_factor = smoothstep(0.9f, 1.0f, saturation); // Only highly saturated pixels get more Reinhard tone mapping
+    blended.x = reinhard.x * reinhard_factor + selectedToneMapped.x * (1.0f - reinhard_factor);
+    blended.y = reinhard.y * reinhard_factor + selectedToneMapped.y * (1.0f - reinhard_factor);
+    blended.z = reinhard.z * reinhard_factor + selectedToneMapped.z * (1.0f - reinhard_factor);
+
+    return blended;
+}
+
+// Smoothstep function for smooth transition
+__DEVICE__ float smoothstep(float edge0, float edge1, float x) {
+    x = clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return x * x * (3 - 2 * x);
+}
+
 
 // Gamut Compression Functions
 
@@ -249,7 +178,13 @@ __DEVICE__ float compressValue(float x, float t, float s, float p) {
     return x;
 }
 
-__DEVICE__ float3 compressGamut(float3 in, float threshold, float max_distance_r, float max_distance_g, float max_distance_b, float aggressiveness, float luminance_strength) {
+__DEVICE__ float3 compressGamut(float3 in) {
+    float threshold = 0.1f;
+    float max_distance_r = 1.2f;
+    float max_distance_g = 1.2f;
+    float max_distance_b = 1.2f;
+    float aggressiveness = 1.5f;
+    float luminance_strength = 1.0f;
     // Calculate chroma (distance from achromatic axis)
     float max_rgb = max(in.x, max(in.y, in.z));
     float min_rgb = min(in.x, min(in.y, in.z));
@@ -290,30 +225,112 @@ __DEVICE__ float3 compressGamut(float3 in, float threshold, float max_distance_r
 
 // Helper Functions
 __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
+    if (transferFunc == acesCCIn) return logToLinACEScc(in);
+    if (transferFunc == acesCCTIn) return logToLinACEScct(in);
+    if (transferFunc == appleLogIn) return logToLinAppleLogProfile(in);
     if (transferFunc == arriLogC3In) return logToLinArriLogC3(in);
-    if (transferFunc == davinciIntermediateIn) return logToLinDavinciIntermediate(in);
+    if (transferFunc == arriLogC4In) return logToLinArriLogC4(in);
+    if (transferFunc == blackmagicFilmGen5In) return logToLinBlackmagicFilmGen5(in);
+    if (transferFunc == canonLogIn) return logToLinCanonLog(in);
+    if (transferFunc == canonLog2In) return logToLinCanonLog2(in);
+    if (transferFunc == canonLog3In) return logToLinCanonLog3(in);
+    if (transferFunc == cineonIn) return logToLinCineon(in);
+    if (transferFunc == djiDLogIn) return logToLinDJIDLog(in);
+    if (transferFunc == filmLightTLogIn) return logToLinFilmLightTLog(in);
+    if (transferFunc == fLogIn) return logToLinFLog(in);
+    if (transferFunc == fLog2In) return logToLinFLog2(in);
+    if (transferFunc == goproProtuneIn) return logToLinProtune(in);
+    if (transferFunc == leicaLogIn) return logToLinLeicaLog(in);
+    if (transferFunc == nLogIn) return logToLinNLog(in);
     if (transferFunc == rec709In) return logToLinRec709(in);
+    if (transferFunc == rec2020In) return logToLinRec2020(in);
+    if (transferFunc == redLog3G10In) return logToLinRedLog3g10(in);
+    if (transferFunc == sonySLogIn) return logToLinSonySLog(in);
+    if (transferFunc == sonySLog2In) return logToLinSonySLog2(in);
+    if (transferFunc == sonySLog3In) return logToLinSonySLog3(in);
+    if (transferFunc == st2084PQIn) return logToLinPQ(in);
+    if (transferFunc == vLogIn) return logToLinVLog(in);
+    if (transferFunc == davinciIntermediateIn) return logToLinDavinciIntermediate(in);
     return in; // Default case, return input as-is
 }
 
 __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
+    if (transferFunc == acesCCOut) return linToLogACEScc(in);
+    if (transferFunc == acesCCTOut) return linToLogACEScct(in);
+    if (transferFunc == appleLogOut) return linToLogAppleLogProfile(in);
     if (transferFunc == arriLogC3Out) return linToLogArriLogC3(in);
-    if (transferFunc == davinciIntermediateOut) return linToLogDavinciIntermediate(in);
+    if (transferFunc == arriLogC4Out) return linToLogArriLogC4(in);
+    if (transferFunc == blackmagicFilmGen5Out) return linToLogBlackmagicFilmGen5(in);
+    if (transferFunc == canonLogOut) return linToLogCanonLog(in);
+    if (transferFunc == canonLog2Out) return linToLogCanonLog2(in);
+    if (transferFunc == canonLog3Out) return linToLogCanonLog3(in);
+    if (transferFunc == cineonOut) return linToLogCineon(in);
+    if (transferFunc == djiDLogOut) return linToLogDJIDLog(in);
+    if (transferFunc == filmLightTLogOut) return linToLogFilmLightTLog(in);
+    if (transferFunc == fLogOut) return linToLogFLog(in);
+    if (transferFunc == fLog2Out) return linToLogFLog2(in);
+    if (transferFunc == goproProtuneOut) return linToLogProtune(in);
+    if (transferFunc == leicaLogOut) return linToLogLeicaLog(in);
+    if (transferFunc == nLogOut) return linToLogNLog(in);
     if (transferFunc == rec709Out) return linToLogRec709(in);
+    if (transferFunc == rec2020Out) return linToLogRec2020(in);
+    if (transferFunc == redLog3G10Out) return linToLogRedLog3g10(in);
+    if (transferFunc == sonySLogOut) return linToLogSonySLog(in);
+    if (transferFunc == sonySLog2Out) return linToLogSonySLog2(in);
+    if (transferFunc == sonySLog3Out) return linToLogSonySLog3(in);
+    if (transferFunc == st2084PQOut) return linToLogPQ(in);
+    if (transferFunc == vLogOut) return linToLogVLog(in);
+    if (transferFunc == davinciIntermediateOut) return linToLogDavinciIntermediate(in);
     return in; // Default case, return input as-is
 }
 
+
+
 __DEVICE__ float3 convertColorspaceToXYZ(float3 in, int colorspaceIn) {
-    if (colorspaceIn == AWGIn) return ArriWideGamutRGBtoXYZ(in);
-    if (colorspaceIn == DWGIn) return DavinciWideGamutRGBtoXYZ(in);
-    if (colorspaceIn == Rec709In) return Rec709RGBtoXYZ(in);
+    if (colorspaceIn == ACES_CGIn) return ACES_CGtoXYZ(in);
+    if (colorspaceIn == ACES_CCTIn) return ACES_CCTtoXYZ(in);
+    if (colorspaceIn == AppleLogIn) return AppleLogtoXYZ(in);
+    if (colorspaceIn == ArriWideGamut3In) return ArriWideGamut3toXYZ(in);
+    if (colorspaceIn == ArriWideGamut4In) return ArriWideGamut4toXYZ(in);
+    if (colorspaceIn == BlackMagicWideGamutGen5In) return BlackMagicWideGamutGen5toXYZ(in);
+    if (colorspaceIn == CanonCinemaGamutIn) return CanonCinemaGamuttoXYZ(in);
+    if (colorspaceIn == DaVinciWideGamutIn) return DaVinciWideGamuttoXYZ(in);
+    if (colorspaceIn == FilmLightEGamutIn) return FilmLightEGamuttoXYZ(in);
+    if (colorspaceIn == FujiFGamutIn) return FujiFGamuttoXYZ(in);
+    if (colorspaceIn == P3D65In) return P3D65toXYZ(in);
+    if (colorspaceIn == PanasonicVGamutIn) return PanasonicVGamuttoXYZ(in);
+    if (colorspaceIn == RedWideGamutIn) return RedWideGamuttoXYZ(in);
+    if (colorspaceIn == SGamut3In) return SGamut3toXYZ(in);
+    if (colorspaceIn == SGamut3CineIn) return SGamut3CinetoXYZ(in);
+    if (colorspaceIn == SGamut3VeniceIn) return SGamut3VenicetoXYZ(in);
+    if (colorspaceIn == SGamut3VeniceCineIn) return SGamut3VeniceCinetoXYZ(in);
+    if (colorspaceIn == Rec709In) return Rec709toXYZ(in);
+    if (colorspaceIn == Rec2020In) return Rec2020toXYZ(in);
+    if (colorspaceIn == DCIP3In) return DCIP3toXYZ(in);
     return in; // Default case, return input as-is
 }
 
 __DEVICE__ float3 convertXYZToColorspace(float3 in, int colorspaceOut) {
-    if (colorspaceOut == AWGOut) return XYZtoArriWideGamutRGB(in);
-    if (colorspaceOut == DWGOut) return XYZtoDavinciWideGamutRGB(in);
-    if (colorspaceOut == Rec709Out) return XYZtoRec709RGB(in);
+   if (colorspaceOut == ACES_CGOut) return XYZtoACES_CG(in);
+    if (colorspaceOut == ACES_CCTOut) return XYZtoACES_CCT(in);
+    if (colorspaceOut == AppleLogOut) return XYZtoAppleLog(in);
+    if (colorspaceOut == ArriWideGamut3Out) return XYZtoArriWideGamut3(in);
+    if (colorspaceOut == ArriWideGamut4Out) return XYZtoArriWideGamut4(in);
+    if (colorspaceOut == BlackMagicWideGamutGen5Out) return XYZtoBlackMagicWideGamutGen5(in);
+    if (colorspaceOut == CanonCinemaGamutOut) return XYZtoCanonCinemaGamut(in);
+    if (colorspaceOut == DaVinciWideGamutOut) return XYZtoDaVinciWideGamut(in);
+    if (colorspaceOut == FilmLightEGamutOut) return XYZtoFilmLightEGamut(in);
+    if (colorspaceOut == FujiFGamutOut) return XYZtoFujiFGamut(in);
+    if (colorspaceOut == P3D65Out) return XYZtoP3D65(in);
+    if (colorspaceOut == PanasonicVGamutOut) return XYZtoPanasonicVGamut(in);
+    if (colorspaceOut == RedWideGamutOut) return XYZtoRedWideGamut(in);
+    if (colorspaceOut == SGamut3Out) return XYZtoSGamut3(in);
+    if (colorspaceOut == SGamut3CineOut) return XYZtoSGamut3Cine(in);
+    if (colorspaceOut == SGamut3VeniceOut) return XYZtoSGamut3Venice(in);
+    if (colorspaceOut == SGamut3VeniceCineOut) return XYZtoSGamut3VeniceCine(in);
+    if (colorspaceOut == Rec709Out) return XYZtoRec709(in);
+    if (colorspaceOut == Rec2020Out) return XYZtoRec2020(in);
+    if (colorspaceOut == DCIP3Out) return XYZtoDCIP3(in);
     return in; // Default case, return input as-is
 }
 
@@ -321,9 +338,9 @@ __DEVICE__ float3 convertXYZToColorspace(float3 in, int colorspaceOut) {
 // Main Function
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 out = make_float3(p_R, p_G, p_B);
-
     // Convert from the encoded Transfer Function to linear
     out = convertToLinear(out, p_TransferFunctionIn);
+    
 
 // Apply tone mapping if enabled
 if (p_ToneMapping == toneMapACESOption) {
@@ -331,9 +348,15 @@ if (p_ToneMapping == toneMapACESOption) {
 } else if (p_ToneMapping == toneMapDavinciOption) {
     out = applyDavinciToneMapping(out);
 } else if (p_ToneMapping == toneMapFilmicOption) {
-    out = filmicTonemap(out);
+    out = applyFilmicToneMapping(out);
 } else if (p_ToneMapping == toneMapReinhardOption) {
     out = applyReinhardToneMapping(out);
+} else if (p_ToneMapping == toneMapDavinciHybridOption) {
+    out = blendToneMappings(out, p_ToneMapping);
+} else if (p_ToneMapping == toneMapFilmicHybridOption) {
+    out = blendToneMappings(out, p_ToneMapping);
+} else if (p_ToneMapping == toneMapAcesHybridOption) {
+    out = blendToneMappings(out, p_ToneMapping);
 }
 
     // Convert from Colorspace In to XYZ
@@ -342,7 +365,7 @@ if (p_ToneMapping == toneMapACESOption) {
     // Gamut Compression
 
 if (p_gamutCompression == gamutCompSaturationPreserving) {
-    out = compressGamut(out, threshold, max_distance_r, max_distance_g, max_distance_b, aggressiveness, luminance_strength);
+    out = compressGamut(out);
 }
     
     // Convert from XYZ to Colorspace Out
@@ -352,7 +375,7 @@ if (p_gamutCompression == gamutCompSaturationPreserving) {
     out = convertToLog(out, p_TransferFunctionOut);
 
     // Draw a green line at the bottom to indicate the DCTL is running without errors
-    if (p_Y < 10) out = make_float3(0, 1, 0);
+    //if (p_Y < 10) out = make_float3(0, 1, 0);
 
     return out;
 }

@@ -1,0 +1,957 @@
+#line 2
+
+//////// Transfer Functions and Colorspace Conversions
+
+////Camera Transfer Functions
+
+//AcesCC
+
+__DEVICE__ float3 logToLinACEScc(float3 in) {
+    float a = 9.72, b = 17.52, c = 0.0000152587890625, d = _log2f(65504);
+    float3 out = make_float3(
+        in.x <= (a - 15) / b ? (_powf(2, in.x * b - a) - c) * 2 : in.x < (d + a) / b ? _powf(2, in.x * b - a) - c : 65504,
+        in.y <= (a - 15) / b ? (_powf(2, in.y * b - a) - c) * 2 : in.y < (d + a) / b ? _powf(2, in.y * b - a) - c : 65504,
+        in.z <= (a - 15) / b ? (_powf(2, in.z * b - a) - c) * 2 : in.z < (d + a) / b ? _powf(2, in.z * b - a) - c : 65504
+    );
+    return out;
+}
+
+__DEVICE__ float3 linToLogACEScc(float3 in) {
+    float a = 9.72, b = 17.52, c = 0.0000152587890625, lin_cut = 0.000030517578125;
+    float3 out = make_float3(
+        in.x <= 0 ? (_log2f(c) + a) / b : in.x < lin_cut ? (_log2f(c + in.x * 0.5) + a) / b : (_log2f(in.x) + a) / b,
+        in.y <= 0 ? (_log2f(c) + a) / b : in.y < lin_cut ? (_log2f(c + in.y * 0.5) + a) / b : (_log2f(in.y) + a) / b,
+        in.z <= 0 ? (_log2f(c) + a) / b : in.z < lin_cut ? (_log2f(c + in.z * 0.5) + a) / b : (_log2f(in.z) + a) / b
+    );
+    return out;
+}
+
+//AcesCCT
+
+__DEVICE__ float3 logToLinACEScct(float3 in) {
+    float a = 10.5402377416545, b = 0.0729055341958355, c = 9.72, d = 17.52, e = _log2f(65504), lin_cut = 0.155251141552511;
+    float3 out = make_float3(
+        in.x <= lin_cut ? (in.x - b) / a : in.x < (e + c) / d ? _powf(2, in.x * d - c) : 65504,
+        in.y <= lin_cut ? (in.y - b) / a : in.y < (e + c) / d ? _powf(2, in.y * d - c) : 65504,
+        in.z <= lin_cut ? (in.z - b) / a : in.z < (e + c) / d ? _powf(2, in.z * d - c) : 65504
+    );
+    return out;
+}
+
+__DEVICE__ float3 linToLogACEScct(float3 in) {
+    float a = 10.5402377416545, b = 0.0729055341958355, c = 9.72, d = 17.52, e = 0.0078125;
+    float3 out = make_float3(
+        in.x <= e ? a * in.x + b : (_log2f(in.x) + c) / d,
+        in.y <= e ? a * in.y + b : (_log2f(in.y) + c) / d,
+        in.z <= e ? a * in.z + b : (_log2f(in.z) + c) / d
+    );
+    return out;
+}
+
+////// APPLE //////
+
+//AppleLog
+
+__DEVICE__ float3 logToLinAppleLogProfile(float3 in) {
+    float R_0 = -0.05641088f, R_t = 0.01f, sigma = 47.28711236f, beta = 0.00964052f, gamma = 0.08550479f, delta = 0.69336945f, P_t = sigma * _powf(R_t - R_0, 2.0f);
+    return make_float3(
+        in.x >= P_t ? _powf(2.0f, (in.x - delta) / gamma) - beta : (in.x >= 0.0f ? _powf(in.x / sigma, 0.5f) + R_0 : R_0),
+        in.y >= P_t ? _powf(2.0f, (in.y - delta) / gamma) - beta : (in.y >= 0.0f ? _powf(in.y / sigma, 0.5f) + R_0 : R_0),
+        in.z >= P_t ? _powf(2.0f, (in.z - delta) / gamma) - beta : (in.z >= 0.0f ? _powf(in.z / sigma, 0.5f) + R_0 : R_0)
+    );
+}
+
+__DEVICE__ float3 linToLogAppleLogProfile(float3 in) {
+    float R_0 = -0.05641088f, R_t = 0.01f, sigma = 47.28711236f, beta = 0.00964052f, gamma = 0.08550479f, delta = 0.69336945f;
+    return make_float3(
+        in.x >= R_t ? gamma * _log2f(in.x + beta) + delta : (in.x >= R_0 ? sigma * _powf(in.x - R_0, 2.0f) : 0.0f),
+        in.y >= R_t ? gamma * _log2f(in.y + beta) + delta : (in.y >= R_0 ? sigma * _powf(in.y - R_0, 2.0f) : 0.0f),
+        in.z >= R_t ? gamma * _log2f(in.z + beta) + delta : (in.z >= R_0 ? sigma * _powf(in.z - R_0, 2.0f) : 0.0f)
+    );
+}
+
+////// ARRI //////
+
+//Arri LogC3
+
+__DEVICE__ float3 logToLinArriLogC3(float3 in) {
+    float3 out;
+    const float cut = 0.010591, a = 5.555556, b = 0.052272, c = 0.247190, d = 0.385537, e = 5.367655, f = 0.092809, th = e * cut + f;
+    out.x = (in.x > th) ? (_powf(10, (in.x - d) / c) - b) / a : (in.x - f) / e;
+    out.y = (in.y > th) ? (_powf(10, (in.y - d) / c) - b) / a : (in.y - f) / e;
+    out.z = (in.z > th) ? (_powf(10, (in.z - d) / c) - b) / a : (in.z - f) / e;
+    return out;
+}
+
+__DEVICE__ float3 linToLogArriLogC3(float3 in) {
+    float3 out;
+    const float cut = 0.010591, a = 5.555556, b = 0.052272, c = 0.247190, d = 0.385537, e = 5.367655, f = 0.092809;
+    out.x = (in.x > cut) ? c * _log10f(a * in.x + b) + d : e * in.x + f;
+    out.y = (in.y > cut) ? c * _log10f(a * in.y + b) + d : e * in.y + f;
+    out.z = (in.z > cut) ? c * _log10f(a * in.z + b) + d : e * in.z + f;
+    return out;
+}
+
+//Arri LogC4
+
+__DEVICE__ float3 logToLinArriLogC4(float3 in) {
+    float a = (_powf(2.0, 18.0) - 16.0) / 117.45, b = (1023.0 - 95.0) / 1023.0, c = 95.0 / 1023.0, s = (7 * _logf(2) * _powf(2.0, 7 - 14 * c / b)) / (a * b), t = (_powf(2.0, 14.0 * (-c / b) + 6.0) - 64.0) / a;
+    return make_float3(
+        in.x < 0.0 ? in.x * s + t : (_powf(2.0, 14.0 * (in.x - c) / b + 6.0) - 64.0) / a,
+        in.y < 0.0 ? in.y * s + t : (_powf(2.0, 14.0 * (in.y - c) / b + 6.0) - 64.0) / a,
+        in.z < 0.0 ? in.z * s + t : (_powf(2.0, 14.0 * (in.z - c) / b + 6.0) - 64.0) / a
+    );
+}
+
+__DEVICE__ float3 linToLogArriLogC4(float3 in) {
+    float a = (_powf(2.0, 18.0) - 16.0) / 117.45, b = (1023.0 - 95.0) / 1023.0, c = 95.0 / 1023.0, s = (7 * _logf(2) * _powf(2.0, 7 - 14 * c / b)) / (a * b), t = (_powf(2.0, 14.0 * (-c / b) + 6.0) - 64.0) / a;
+    return make_float3(
+        in.x < t ? (in.x - t) / s : (_log2f(a * in.x + 64.0) - 6.0) / 14.0 * b + c,
+        in.y < t ? (in.y - t) / s : (_log2f(a * in.y + 64.0) - 6.0) / 14.0 * b + c,
+        in.z < t ? (in.z - t) / s : (_log2f(a * in.z + 64.0) - 6.0) / 14.0 * b + c
+    );
+}
+
+////// BLACKMAGIC //////
+
+//Blackmagic Design Film Gen 5
+__DEVICE__ float3 logToLinBlackmagicFilmGen5(float3 in) {
+    float A = 0.08692876065491224f, B = 0.005494072432257808f, C = 0.5300133392291939f, D = 8.283605932402494f, E = 0.09246575342465753f, LOG_CUT = D * 0.005f + E;
+    return make_float3(
+        in.x < LOG_CUT ? (in.x - E) / D : _expf((in.x - C) / A) - B,
+        in.y < LOG_CUT ? (in.y - E) / D : _expf((in.y - C) / A) - B,
+        in.z < LOG_CUT ? (in.z - E) / D : _expf((in.z - C) / A) - B
+    );
+}
+
+__DEVICE__ float3 linToLogBlackmagicFilmGen5(float3 in) {
+    float A = 0.08692875224330131f, B = 0.0054940711907293955f, C = 0.5300133837514731f, D = 8.283611088773256f, E = 0.09246580021201303f, LIN_CUT = 0.004999993693740552f;
+    return make_float3(
+        in.x <= LIN_CUT ? (in.x * D + E) : (_logf(in.x + B) * A + C),
+        in.y <= LIN_CUT ? (in.y * D + E) : (_logf(in.y + B) * A + C),
+        in.z <= LIN_CUT ? (in.z * D + E) : (_logf(in.z + B) * A + C)
+    );
+}
+
+__DEVICE__ float3 logToLinDavinciIntermediate(float3 in) {
+    float a = 0.0075f, b = 7.0f, c = 0.07329248f, m = 10.44426855f, log_cut = 0.02740668f;
+    return make_float3(
+        in.x > log_cut ? _powf(2.f, (in.x / c) - b) - a : in.x / m,
+        in.y > log_cut ? _powf(2.f, (in.y / c) - b) - a : in.y / m,
+        in.z > log_cut ? _powf(2.f, (in.z / c) - b) - a : in.z / m
+    );
+}
+
+__DEVICE__ float3 linToLogDavinciIntermediate(float3 in) {
+    float a = 0.0075f, b = 7.0f, c = 0.07329248f, m = 10.44426855f, lin_cut = 0.00262409f;
+    return make_float3(
+        in.x > lin_cut ? (_log2f(in.x + a) + b) * c : in.x * m,
+        in.y > lin_cut ? (_log2f(in.y + a) + b) * c : in.y * m,
+        in.z > lin_cut ? (_log2f(in.z + a) + b) * c : in.z * m
+    );
+}
+
+////// CANON //////
+
+//Canon log
+
+__DEVICE__ float3 logToLinCanonLog(float3 in) {
+    float a = 0.529136f, b = 0.0730597f, c = 10.1596f, log_cut = 0.0730597f;
+    return make_float3(
+        in.x < log_cut ? -(_powf(10.0f, (b - in.x) / a) - 1.0f) / c : (_powf(10.0f, (in.x - b) / a) - 1.0f) / c,
+        in.y < log_cut ? -(_powf(10.0f, (b - in.y) / a) - 1.0f) / c : (_powf(10.0f, (in.y - b) / a) - 1.0f) / c,
+        in.z < log_cut ? -(_powf(10.0f, (b - in.z) / a) - 1.0f) / c : (_powf(10.0f, (in.z - b) / a) - 1.0f) / c
+    );
+}
+
+__DEVICE__ float3 linToLogCanonLog(float3 in) {
+    float a = 0.529136f, b = 0.0730597f, c = 10.1596f, lin_cut = -( _powf(10.0f, (b - 0.0730597f) / a) - 1.0f) / c;
+    return make_float3(
+        in.x < lin_cut ? -(a * _log10f(-in.x * c + 1.0f) - b) : a * _log10f(c * in.x + 1.0f) + b,
+        in.y < lin_cut ? -(a * _log10f(-in.y * c + 1.0f) - b) : a * _log10f(c * in.y + 1.0f) + b,
+        in.z < lin_cut ? -(a * _log10f(-in.z * c + 1.0f) - b) : a * _log10f(c * in.z + 1.0f) + b
+    );
+}
+
+//Canon log 2
+
+__DEVICE__ float3 logToLinCanonLog2(float3 in) {
+    float a = 0.24136077f, b = 0.092864125f, c = 87.099375f;
+    return make_float3(
+        in.x < b ? -(_powf(10.0f, (b - in.x) / a) - 1.0f) / c : (_powf(10.0f, (in.x - b) / a) - 1.0f) / c,
+        in.y < b ? -(_powf(10.0f, (b - in.y) / a) - 1.0f) / c : (_powf(10.0f, (in.y - b) / a) - 1.0f) / c,
+        in.z < b ? -(_powf(10.0f, (b - in.z) / a) - 1.0f) / c : (_powf(10.0f, (in.z - b) / a) - 1.0f) / c
+    );
+}
+
+__DEVICE__ float3 linToLogCanonLog2(float3 in) {
+    float a = 0.24136077f, b = 0.092864125f, c = 87.099375f;
+    return make_float3(
+        in.x < 0 ? b - a * _log10f(-in.x * c + 1.0f) : a * _log10f(in.x * c + 1.0f) + b,
+        in.y < 0 ? b - a * _log10f(-in.y * c + 1.0f) : a * _log10f(in.y * c + 1.0f) + b,
+        in.z < 0 ? b - a * _log10f(-in.z * c + 1.0f) : a * _log10f(in.z * c + 1.0f) + b
+    );
+}
+
+//Canon log 3
+
+__DEVICE__ float3 logToLinCanonLog3(float3 in) {
+    float a = 0.36726845f, b = 0.092864125f, c = 0.24136077f, d = 87.099375f;
+    float lin_cut_low = 0.092864125f, lin_cut_high = 0.15277891f;
+
+    return make_float3(
+        (in.x < lin_cut_low) ? -(_powf(10.0f, (b - in.x) / c) - 1.0f) / d :
+        (in.x <= lin_cut_high) ? (in.x - 0.12512219f) / 1.9754798f :
+                                 (_powf(10.0f, (in.x - 0.12240537f) / a) - 1.0f) / 14.98325f,
+        (in.y < lin_cut_low) ? -(_powf(10.0f, (b - in.y) / c) - 1.0f) / d :
+        (in.y <= lin_cut_high) ? (in.y - 0.12512219f) / 1.9754798f :
+                                 (_powf(10.0f, (in.y - 0.12240537f) / a) - 1.0f) / 14.98325f,
+        (in.z < lin_cut_low) ? -(_powf(10.0f, (b - in.z) / c) - 1.0f) / d :
+        (in.z <= lin_cut_high) ? (in.z - 0.12512219f) / 1.9754798f :
+                                 (_powf(10.0f, (in.z - 0.12240537f) / a) - 1.0f) / 14.98325f
+    );
+}
+
+__DEVICE__ float3 linToLogCanonLog3(float3 in) {
+    float a = 0.36726845f, b = 0.092864125f, c = 0.24136077f, d = 87.099375f;
+
+    return make_float3(
+        (in.x < -( _powf(10.0f, (b - 0.092864125f) / c) - 1.0f) / d) ? -(c * _log10f(-in.x * d + 1.0f) - b) :
+        (in.x <= 0.12512219f / 1.9754798f) ? in.x * 1.9754798f + 0.12512219f :
+                                             a * _log10f(in.x * 14.98325f + 1.0f) + 0.12240537f,
+        (in.y < -( _powf(10.0f, (b - 0.092864125f) / c) - 1.0f) / d) ? -(c * _log10f(-in.y * d + 1.0f) - b) :
+        (in.y <= 0.12512219f / 1.9754798f) ? in.y * 1.9754798f + 0.12512219f :
+                                             a * _log10f(in.y * 14.98325f + 1.0f) + 0.12240537f,
+        (in.z < -( _powf(10.0f, (b - 0.092864125f) / c) - 1.0f) / d) ? -(c * _log10f(-in.z * d + 1.0f) - b) :
+        (in.z <= 0.12512219f / 1.9754798f) ? in.z * 1.9754798f + 0.12512219f :
+                                             a * _log10f(in.z * 14.98325f + 1.0f) + 0.12240537f
+    );
+}
+
+////// CINEON //////
+
+// Cineon Film Log
+
+__DEVICE__ float3 logToLinCineon(float3 in) {
+    float black_offset = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
+    float scale = 1.0f / (1.0f - black_offset);
+    return make_float3(
+        (_powf(10.0f, (1023.0f * in.x - 685.0f) / 300.0f) - black_offset) * scale,
+        (_powf(10.0f, (1023.0f * in.y - 685.0f) / 300.0f) - black_offset) * scale,
+        (_powf(10.0f, (1023.0f * in.z - 685.0f) / 300.0f) - black_offset) * scale
+    );
+}
+
+__DEVICE__ float3 linToLogCineon(float3 in) {
+    float black_offset = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
+    float scale = 1.0f - black_offset;
+    return make_float3(
+        (685.0f + 300.0f * _log10f(in.x * scale + black_offset)) / 1023.0f,
+        (685.0f + 300.0f * _log10f(in.y * scale + black_offset)) / 1023.0f,
+        (685.0f + 300.0f * _log10f(in.z * scale + black_offset)) / 1023.0f
+    );
+}
+
+////// DJI //////
+
+// DJI D-Log
+
+__DEVICE__ float3 logToLinDJIDLog(float3 in) {
+    float a = 3.89616f, b = -2.27752f, c = 0.9892f, d = 0.0108f, lin_cut = 0.14f;
+    return make_float3(
+        in.x < lin_cut ? (in.x - 0.0929f) / 6.025f : (_powf(10.0f, a * in.x + b) - d) / c,
+        in.y < lin_cut ? (in.y - 0.0929f) / 6.025f : (_powf(10.0f, a * in.y + b) - d) / c,
+        in.z < lin_cut ? (in.z - 0.0929f) / 6.025f : (_powf(10.0f, a * in.z + b) - d) / c
+    );
+}
+
+__DEVICE__ float3 linToLogDJIDLog(float3 in) {
+    float a = 0.256663f, b = 0.584555f, c = 0.9892f, d = 0.0108f, log_cut = 0.0078f;
+    return make_float3(
+        in.x < log_cut ? 6.025f * in.x + 0.0929f : (_log10f(in.x * c + d)) * a + b,
+        in.y < log_cut ? 6.025f * in.y + 0.0929f : (_log10f(in.y * c + d)) * a + b,
+        in.z < log_cut ? 6.025f * in.z + 0.0929f : (_log10f(in.z * c + d)) * a + b
+    );
+}
+
+
+
+////// FILMLIGHT //////
+
+// T-Log
+
+
+__DEVICE__ float3 linToLogFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
+    float b = 1 / (0.7107f + 1.2359f * _logf(w * g));
+    float gs = g / (1 - o);
+    float C = b / gs;
+    float a = 1 - b * _logf(w + C);
+    float y0 = a + b * _logf(C);
+    float s = (1 - o) / (1 - y0);
+    float A = 1 + (a - 1) * s;
+    float B = b * s;
+    float G = gs * s;
+
+    return make_float3(
+        in.x < 0.0f ? G * in.x + o : _logf(in.x + C) * B + A,
+        in.y < 0.0f ? G * in.y + o : _logf(in.y + C) * B + A,
+        in.z < 0.0f ? G * in.z + o : _logf(in.z + C) * B + A
+    );
+}
+
+__DEVICE__ float3 logToLinFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
+    float b = 1 / (0.7107f + 1.2359f * _logf(w * g));
+    float gs = g / (1 - o);
+    float C = b / gs;
+    float a = 1 - b * _logf(w + C);
+    float y0 = a + b * _logf(C);
+    float s = (1 - o) / (1 - y0);
+    float A = 1 + (a - 1) * s;
+    float B = b * s;
+    float G = gs * s;
+
+    return make_float3(
+        in.x < o ? (in.x - o) / G : _expf((in.x - A) / B) - C,
+        in.y < o ? (in.y - o) / G : _expf((in.y - A) / B) - C,
+        in.z < o ? (in.z - o) / G : _expf((in.z - A) / B) - C
+    );
+}
+
+
+////// FUJIFILM //////
+
+// F-Log
+
+__DEVICE__ float3 logToLinFLog(float3 in) {
+    float a = 0.555556f, b = 0.009468f, c = 0.344676f, d = 0.790453f, e = 8.735631f, f = 0.092864f;
+    float cut2 = 0.100537775223865f;
+
+    return make_float3(
+        in.x >= cut2 ? (_powf(10.0f, (in.x - d) / c) / a) - (b / a) : (in.x - f) / e,
+        in.y >= cut2 ? (_powf(10.0f, (in.y - d) / c) / a) - (b / a) : (in.y - f) / e,
+        in.z >= cut2 ? (_powf(10.0f, (in.z - d) / c) / a) - (b / a) : (in.z - f) / e
+    );
+}
+
+__DEVICE__ float3 linToLogFLog(float3 in) {
+    float a = 0.555556f, b = 0.009468f, c = 0.344676f, d = 0.790453f, e = 8.735631f, f = 0.092864f;
+    float cut1 = 0.00089f;
+
+    return make_float3(
+        in.x >= cut1 ? c * _log10f(a * in.x + b) + d : e * in.x + f,
+        in.y >= cut1 ? c * _log10f(a * in.y + b) + d : e * in.y + f,
+        in.z >= cut1 ? c * _log10f(a * in.z + b) + d : e * in.z + f
+    );
+}
+
+// F-Log2
+
+__DEVICE__ float3 logToLinFLog2(float3 in) {
+    float a = 5.555556f, b = 0.064829f, c = 0.245281f, d = 0.384316f, e = 8.799461f, f = 0.092864f;
+    float cut2 = 0.100686685370811f;
+
+    return make_float3(
+        in.x >= cut2 ? (_powf(10.0f, (in.x - d) / c) / a) - (b / a) : (in.x - f) / e,
+        in.y >= cut2 ? (_powf(10.0f, (in.y - d) / c) / a) - (b / a) : (in.y - f) / e,
+        in.z >= cut2 ? (_powf(10.0f, (in.z - d) / c) / a) - (b / a) : (in.z - f) / e
+    );
+}
+
+__DEVICE__ float3 linToLogFLog2(float3 in) {
+    float a = 5.555556f, b = 0.064829f, c = 0.245281f, d = 0.384316f, e = 8.799461f, f = 0.092864f;
+    float cut1 = 0.000889f;
+
+    return make_float3(
+        in.x >= cut1 ? c * _log10f(a * in.x + b) + d : e * in.x + f,
+        in.y >= cut1 ? c * _log10f(a * in.y + b) + d : e * in.y + f,
+        in.z >= cut1 ? c * _log10f(a * in.z + b) + d : e * in.z + f
+    );
+}
+
+////// GOPRO //////
+
+// GoPro Protune
+
+__DEVICE__ float3 logToLinProtune(float3 in) {
+    float a = 112.0f, b = 113.0f;
+    return make_float3(
+        (_powf(b, in.x) - 1.0f) / a,
+        (_powf(b, in.y) - 1.0f) / a,
+        (_powf(b, in.z) - 1.0f) / a
+    );
+}
+
+__DEVICE__ float3 linToLogProtune(float3 in) {
+    float a = 112.0f, b = 113.0f;
+    return make_float3(
+        _logf(in.x * a + 1.0f) / _logf(b),
+        _logf(in.y * a + 1.0f) / _logf(b),
+        _logf(in.z * a + 1.0f) / _logf(b)
+    );
+}
+
+
+////// LEICA //////
+
+// Leica L-Log
+
+__DEVICE__ float3 logToLinLeicaLog(float3 in) {
+    float a = 8.0f, b = 0.09f, c = 0.27f, d = 1.3f, e = 0.0115f, f = 0.6f;
+    float cut2 = 0.1380f;
+
+    return make_float3(
+        in.x <= cut2 ? (in.x - b) / a : (_powf(10.0f, (in.x - f) / c) - e) / d,
+        in.y <= cut2 ? (in.y - b) / a : (_powf(10.0f, (in.y - f) / c) - e) / d,
+        in.z <= cut2 ? (in.z - b) / a : (_powf(10.0f, (in.z - f) / c) - e) / d
+    );
+}
+
+
+__DEVICE__ float3 linToLogLeicaLog(float3 in) {
+    float a = 8.0f, b = 0.09f, c = 0.27f, d = 1.3f, e = 0.0115f, f = 0.6f;
+    float cut1 = 0.006f;
+
+    return make_float3(
+        in.x <= cut1 ? a * in.x + b : c * _log10f(d * in.x + e) + f,
+        in.y <= cut1 ? a * in.y + b : c * _log10f(d * in.y + e) + f,
+        in.z <= cut1 ? a * in.z + b : c * _log10f(d * in.z + e) + f
+    );
+}
+
+////// NIKON //////
+
+// Nikon N-Log
+__DEVICE__ float3 logToLinNLog(float3 in) {
+    float cut2 = 452.0f / 1023.0f, a = 650.0f / 1023.0f, b = 0.0075f, c = 150.0f / 1023.0f, d = 619.0f / 1023.0f;
+    return make_float3(
+        in.x < cut2 ? _powf(in.x / a, 3.0f) - b : _expf((in.x - d) / c),
+        in.y < cut2 ? _powf(in.y / a, 3.0f) - b : _expf((in.y - d) / c),
+        in.z < cut2 ? _powf(in.z / a, 3.0f) - b : _expf((in.z - d) / c)
+    );
+}
+
+__DEVICE__ float3 linToLogNLog(float3 in) {
+    float cut1 = 0.328f, a = 650.0f / 1023.0f, b = 0.0075f, c = 150.0f / 1023.0f, d = 619.0f / 1023.0f;
+    return make_float3(
+        in.x < cut1 ? a * _powf(in.x + b, 1.0f / 3.0f) : c * _logf(in.x) + d,
+        in.y < cut1 ? a * _powf(in.y + b, 1.0f / 3.0f) : c * _logf(in.y) + d,
+        in.z < cut1 ? a * _powf(in.z + b, 1.0f / 3.0f) : c * _logf(in.z) + d
+    );
+}
+
+////// PANASONIC //////
+
+__DEVICE__ float3 logToLinVLog(float3 in) {
+    float c = 0.241514f, b = 0.00873f, d = 0.598206f, cut2 = 0.181f;
+    return make_float3(
+        in.x < cut2 ? (in.x - 0.125f) / 5.6f :
+                      _powf(10.0f, (in.x - d) / c) - b,
+        in.y < cut2 ? (in.y - 0.125f) / 5.6f :
+                      _powf(10.0f, (in.y - d) / c) - b,
+        in.z < cut2 ? (in.z - 0.125f) / 5.6f :
+                      _powf(10.0f, (in.z - d) / c) - b
+    );
+}
+
+__DEVICE__ float3 linToLogVLog(float3 in) {
+    float c = 0.241514f, b = 0.00873f, d = 0.598206f, cut1 = 0.01f;
+    return make_float3(
+        in.x < cut1 ? (5.6f * in.x + 0.125f) :
+                      c * _log10f(in.x + b) + d,
+        in.y < cut1 ? (5.6f * in.y + 0.125f) :
+                      c * _log10f(in.y + b) + d,
+        in.z < cut1 ? (5.6f * in.z + 0.125f) :
+                      c * _log10f(in.z + b) + d
+    );
+}
+
+////// RED DIGITAL CINEMA //////
+
+// Redlog3G10
+
+__DEVICE__ float3 logToLinRedLog3g10(float3 in) {
+    float a = 0.224282f, b = 155.975327f, c = 0.01f, g = 15.1927f;
+    return make_float3(
+        (in.x > 0.0f ? (_powf(10.0f, in.x / a) - 1.0f) / b : (in.x / g) - c),
+        (in.y > 0.0f ? (_powf(10.0f, in.y / a) - 1.0f) / b : (in.y / g) - c),
+        (in.z > 0.0f ? (_powf(10.0f, in.z / a) - 1.0f) / b : (in.z / g) - c)
+    );
+}
+
+__DEVICE__ float3 linToLogRedLog3g10(float3 in) {
+    float a = 0.224282f, b = 155.975327f, g = 15.1927f;
+    return make_float3(
+        (in.x > 0.0f ? a * _log10f((in.x * b) + 1.0f) : in.x * g),
+        (in.y > 0.0f ? a * _log10f((in.y * b) + 1.0f) : in.y * g),
+        (in.z > 0.0f ? a * _log10f((in.z * b) + 1.0f) : in.z * g)
+    );
+}
+
+////// SONY //////
+
+// Sony Slog
+
+__DEVICE__ float3 logToLinSonySLog(float3 in) {
+    const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
+    const float offset = 64.0f, range = 940.0f - 64.0f, cut = 0.030001222851889303f;
+    const float scale = 1023.0f, fac1 = 219.0f / 155.0f, fac2 = 3.53881278538813f, mul = 0.9f;
+
+    in *= scale;
+    return make_float3(
+        in.x >= 90.0f ? fac1 * (_powf(10.0f, ((in.x - offset) / range - b - c) / a) - d) * mul :
+                       ((in.x - offset) / range - cut) / fac2 * mul,
+        in.y >= 90.0f ? fac1 * (_powf(10.0f, ((in.y - offset) / range - b - c) / a) - d) * mul :
+                       ((in.y - offset) / range - cut) / fac2 * mul,
+        in.z >= 90.0f ? fac1 * (_powf(10.0f, ((in.z - offset) / range - b - c) / a) - d) * mul :
+                       ((in.z - offset) / range - cut) / fac2 * mul
+    );
+}
+
+__DEVICE__ float3 linToLogSonySLog(float3 in) {
+    const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
+    const float scale = 1023.0f, mul = 0.9f, fac1 = 155.0f / 219.0f, fac2 = 3.53881278538813f;
+    const float offset = 64.0f, range = 940.0f - 64.0f, cut = -0.00008153227156f;
+
+    in /= mul;
+    return make_float3(
+        in.x >= cut ? ((a * _log10f(in.x * fac1 + d) + b + c) * range + offset) / scale :
+                      ((in.x * fac2 + 0.030001222851889303f) * range + offset) / scale,
+        in.y >= cut ? ((a * _log10f(in.y * fac1 + d) + b + c) * range + offset) / scale :
+                      ((in.y * fac2 + 0.030001222851889303f) * range + offset) / scale,
+        in.z >= cut ? ((a * _log10f(in.z * fac1 + d) + b + c) * range + offset) / scale :
+                      ((in.z * fac2 + 0.030001222851889303f) * range + offset) / scale
+    );
+}
+
+// Sony Slog2
+
+__DEVICE__ float3 logToLinSonySLog2(float3 in) {
+    const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
+    const float offset = 64.0f, range = 876.0f, lin_cut = 0.030001222851889303f;
+    const float scale = 1023.0f, factor1 = 219.0f / 155.0f, factor2 = 3.53881278538813f, mul = 0.9f;
+    in *= scale;
+    return make_float3(
+        (in.x >= 90.0f) ? factor1 * (_powf(10.0f, ((in.x - offset) / range - b - c) / a) - d) * mul : ((in.x - offset) / range - lin_cut) / factor2 * mul,
+        (in.y >= 90.0f) ? factor1 * (_powf(10.0f, ((in.y - offset) / range - b - c) / a) - d) * mul : ((in.y - offset) / range - lin_cut) / factor2 * mul,
+        (in.z >= 90.0f) ? factor1 * (_powf(10.0f, ((in.z - offset) / range - b - c) / a) - d) * mul : ((in.z - offset) / range - lin_cut) / factor2 * mul
+    );
+}
+
+__DEVICE__ float3 linToLogSonySLog2(float3 in) {
+    const float a = 0.432699f, b = 0.616596f, c = 0.03f, d = 0.037584f;
+    const float scale = 1023.0f, mul = 0.9f, factor1 = 155.0f / 219.0f, factor2 = 3.53881278538813f;
+    const float offset = 64.0f, range = 876.0f, lin_cut = -0.00008153227156f;
+    in /= mul;
+    return make_float3(
+        (in.x >= lin_cut) ? ((a * _log10f(in.x * factor1 + d) + b + c) * range + offset) / scale : ((in.x * factor2 + 0.030001222851889303f) * range + offset) / scale,
+        (in.y >= lin_cut) ? ((a * _log10f(in.y * factor1 + d) + b + c) * range + offset) / scale : ((in.y * factor2 + 0.030001222851889303f) * range + offset) / scale,
+        (in.z >= lin_cut) ? ((a * _log10f(in.z * factor1 + d) + b + c) * range + offset) / scale : ((in.z * factor2 + 0.030001222851889303f) * range + offset) / scale
+    );
+}
+
+// Sony Slog3
+
+__DEVICE__ float3 logToLinSonySLog3(float3 in) {
+    float lin_cut = 171.2102946929 / 1023.0;
+    return make_float3(
+        in.x >= lin_cut ? (_powf(10.0f, (in.x * 1023.0 - 420.0) / 261.5) * (0.18 + 0.01) - 0.01) : (in.x * 1023.0 - 95.0) * 0.01125000 / (171.2102946929 - 95.0),
+        in.y >= lin_cut ? (_powf(10.0f, (in.y * 1023.0 - 420.0) / 261.5) * (0.18 + 0.01) - 0.01) : (in.y * 1023.0 - 95.0) * 0.01125000 / (171.2102946929 - 95.0),
+        in.z >= lin_cut ? (_powf(10.0f, (in.z * 1023.0 - 420.0) / 261.5) * (0.18 + 0.01) - 0.01) : (in.z * 1023.0 - 95.0) * 0.01125000 / (171.2102946929 - 95.0)
+    );
+}
+
+__DEVICE__ float3 linToLogSonySLog3(float3 in) {
+    return make_float3(
+        in.x >= 0.01125000 ? (420.0f + _log10f((in.x + 0.01) / (0.18 + 0.01)) * 261.5f) / 1023.0f : (in.x * (171.2102946929f - 95.0f) / 0.01125000f + 95.0f) / 1023.0f,
+        in.y >= 0.01125000 ? (420.0f + _log10f((in.y + 0.01) / (0.18 + 0.01)) * 261.5f) / 1023.0f : (in.y * (171.2102946929f - 95.0f) / 0.01125000f + 95.0f) / 1023.0f,
+        in.z >= 0.01125000 ? (420.0f + _log10f((in.z + 0.01) / (0.18 + 0.01)) * 261.5f) / 1023.0f : (in.z * (171.2102946929f - 95.0f) / 0.01125000f + 95.0f) / 1023.0f
+    );
+}
+
+/////// DISPLAY TRANSFER FUNCTIONS //////////
+
+// Rec.709
+
+__DEVICE__ float3 logToLinRec709(float3 V) {
+    float3 L;
+    L.x = (V.x < 0.081f) ? V.x / 4.5f : _powf((V.x + 0.099f) / 1.099f, 1.0f / 0.45f);
+    L.y = (V.y < 0.081f) ? V.y / 4.5f : _powf((V.y + 0.099f) / 1.099f, 1.0f / 0.45f);
+    L.z = (V.z < 0.081f) ? V.z / 4.5f : _powf((V.z + 0.099f) / 1.099f, 1.0f / 0.45f);
+    return L;
+}
+
+__DEVICE__ float3 linToLogRec709(float3 L) {
+    float3 V;
+    V.x = (L.x < 0.018f) ? 4.5f * L.x : 1.099f * _powf(L.x, 0.45f) - 0.099f;
+    V.y = (L.y < 0.018f) ? 4.5f * L.y : 1.099f * _powf(L.y, 0.45f) - 0.099f;
+    V.z = (L.z < 0.018f) ? 4.5f * L.z : 1.099f * _powf(L.z, 0.45f) - 0.099f;
+    return V;
+}
+
+// Rec.2020
+
+__DEVICE__ float3 logToLinRec2020(float3 in) {
+    return make_float3(
+        in.x < 0.081f ? in.x / 4.5f : _powf((in.x + 0.099f) / 1.099f, 1.0f / 0.45f),
+        in.y < 0.081f ? in.y / 4.5f : _powf((in.y + 0.099f) / 1.099f, 1.0f / 0.45f),
+        in.z < 0.081f ? in.z / 4.5f : _powf((in.z + 0.099f) / 1.099f, 1.0f / 0.45f)
+    );
+}
+
+__DEVICE__ float3 linToLogRec2020(float3 in) {
+    return make_float3(
+        in.x < 0.018f ? 4.5f * in.x : 1.099f * _powf(in.x, 0.45f) - 0.099f,
+        in.y < 0.018f ? 4.5f * in.y : 1.099f * _powf(in.y, 0.45f) - 0.099f,
+        in.z < 0.018f ? 4.5f * in.z : 1.099f * _powf(in.z, 0.45f) - 0.099f
+    );
+}
+
+// ST.2084 (PQ)
+
+__DEVICE__ float3 logToLinPQ(float3 in) {
+    const float m1 = 0.1593017578125f;
+    const float m2 = 78.84375f;
+    const float c1 = 0.8359375f;
+    const float c2 = 18.8515625f;
+    const float c3 = 18.6875f;
+    
+    return make_float3(
+        10000.0f * _powf(_fmaxf(_powf(in.x, 1.0f / m2) - c1, 0.0f) / (c2 - c3 * _powf(in.x, 1.0f / m2)), 1.0f / m1),
+        10000.0f * _powf(_fmaxf(_powf(in.y, 1.0f / m2) - c1, 0.0f) / (c2 - c3 * _powf(in.y, 1.0f / m2)), 1.0f / m1),
+        10000.0f * _powf(_fmaxf(_powf(in.z, 1.0f / m2) - c1, 0.0f) / (c2 - c3 * _powf(in.z, 1.0f / m2)), 1.0f / m1)
+    );
+}
+
+__DEVICE__ float3 linToLogPQ(float3 in) {
+    const float m1 = 0.1593017578125f;
+    const float m2 = 78.84375f;
+    const float c1 = 0.8359375f;
+    const float c2 = 18.8515625f;
+    const float c3 = 18.6875f;
+
+    return make_float3(
+        _powf((c1 + c2 * _powf(in.x / 10000.0f, m1)) / (1.0f + c3 * _powf(in.x / 10000.0f, m1)), m2),
+        _powf((c1 + c2 * _powf(in.y / 10000.0f, m1)) / (1.0f + c3 * _powf(in.y / 10000.0f, m1)), m2),
+        _powf((c1 + c2 * _powf(in.z / 10000.0f, m1)) / (1.0f + c3 * _powf(in.z / 10000.0f, m1)), m2)
+    );
+}
+
+
+
+//////////////////////
+////////////////////// Colorspace Conversion Functions
+
+// Matrix Function
+__DEVICE__ float3 applyMatrix(float3 in, float m00, float m01, float m02, float m10, float m11, float m12, float m20, float m21, float m22) {
+    float3 out;
+    out.x = (m00 * in.x) + (m01 * in.y) + (m02 * in.z);
+    out.y = (m10 * in.x) + (m11 * in.y) + (m12 * in.z);
+    out.z = (m20 * in.x) + (m21 * in.y) + (m22 * in.z);
+    return out;
+}
+
+
+// Camera Colorspace conversions
+// ACES CG
+__DEVICE__ float3 ACES_CGtoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.6624541811f, 0.1340042065f, 0.1561876870f,
+        0.2722287168f, 0.6740817658f, 0.0536895174f,
+        -0.0055746495f, 0.0040607335f, 1.0103391003f);
+}
+
+__DEVICE__ float3 XYZtoACES_CG(float3 in) {
+    return applyMatrix(in,
+        1.6410233797f, -0.3248032942f, -0.2364246952f,
+        -0.6636628587f, 1.6153315917f, 0.0167563477f,
+        0.0117218943f, -0.0082844420f, 0.9883948585f);
+}
+
+// ACES CCT
+__DEVICE__ float3 ACES_CCTtoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.6624541811f, 0.1340042065f, 0.1561876870f,
+        0.2722287168f, 0.6740817658f, 0.0536895174f,
+        -0.0055746495f, 0.0040607335f, 1.0103391003f);
+}
+
+__DEVICE__ float3 XYZtoACES_CCT(float3 in) {
+    return applyMatrix(in,
+        1.6410233797f, -0.3248032942f, -0.2364246952f,
+        -0.6636628587f, 1.6153315917f, 0.0167563477f,
+        0.0117218943f, -0.0082844420f, 0.9883948585f);
+}
+
+// AppleLog
+__DEVICE__ float3 AppleLogtoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.63695805f, 0.14461690f, 0.16888098f,
+        0.26270021f, 0.67799807f, 0.05930172f,
+        0.00000000f, 0.02807269f, 1.06098506f);
+}
+
+__DEVICE__ float3 XYZtoAppleLog(float3 in) {
+    return applyMatrix(in,
+        1.71665119f, -0.35567078f, -0.25336628f,
+        -0.66668435f, 1.61648124f, 0.01576855f,
+        0.01763986f, -0.04277061f, 0.94210312f);
+}
+
+// Arri Wide Gamut 3
+__DEVICE__ float3 ArriWideGamut3toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.638008f, 0.214704f, 0.097744f,
+        0.291954f, 0.823841f, -0.115795f,
+        0.002798f, -0.067034f, 1.153294f);
+}
+
+__DEVICE__ float3 XYZtoArriWideGamut3(float3 in) {
+    return applyMatrix(in,
+        1.789066f, -0.482534f, -0.200076f,
+        -0.639849f, 1.3964f, 0.194432f,
+        -0.041532f, 0.082335f, 0.878868f);
+}
+
+// ARRI Wide Gamut 4
+__DEVICE__ float3 ArriWideGamut4toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.70485832f, 0.12976030f, 0.11583731f,
+        0.25452418f, 0.78147773f, -0.03600191f,
+        0.00000000f, 0.00000000f, 1.08905775f);
+}
+
+__DEVICE__ float3 XYZtoArriWideGamut4(float3 in) {
+    return applyMatrix(in,
+        1.50921547f, -0.25059735f, -0.16881148f,
+        -0.49154545f, 1.36124555f, 0.09728294f,
+        0.00000000f, 0.00000000f, 0.91822495f);
+}
+
+// BlackMagic Wide Gamut Gen5
+__DEVICE__ float3 BlackMagicWideGamutGen5toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.606530f, 0.220408f, 0.123479f,
+        0.267989f, 0.832731f, -0.100720f,
+        -0.029442f, -0.086611f, 1.204861f);
+}
+
+__DEVICE__ float3 XYZtoBlackMagicWideGamutGen5(float3 in) {
+    return applyMatrix(in,
+        1.866382f, -0.518397f, -0.234610f,
+        -0.600342f, 1.378149f, 0.176732f,
+        0.002452f, 0.086400f, 0.836943f);
+}
+
+// Canon Cinema Gamut
+__DEVICE__ float3 CanonCinemaGamuttoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.73991443f, 0.12583596f, 0.09104791f,
+        0.26996878f, 0.84384112f, -0.11380989f,
+        -0.00999884f, -0.22946557f, 1.16086091f);
+}
+
+__DEVICE__ float3 XYZtoCanonCinemaGamut(float3 in) {
+    return applyMatrix(in,
+        1.44176652f, -0.25248111f, -0.13783278f,
+        -0.47217534f, 1.30020293f, 0.16450424f,
+        -0.08091579f, 0.25483439f, 0.89275974f);
+}
+
+// DaVinci Wide Gamut
+__DEVICE__ float3 DaVinciWideGamuttoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.70062239f, 0.14877482f, 0.10105872f,
+        0.27411851f, 0.87363190f, -0.14775041f,
+        -0.09896291f, -0.13789533f, 1.32591599f);
+}
+
+__DEVICE__ float3 XYZtoDaVinciWideGamut(float3 in) {
+    return applyMatrix(in,
+        1.51667204f, -0.28147805f, -0.14696363f,
+        -0.46491710f, 1.25142378f, 0.17488461f,
+        0.06484905f, 0.10913934f, 0.76141462f);
+}
+
+// FilmLight E-Gamut
+__DEVICE__ float3 FilmLightEGamuttoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.70539685f, 0.16404133f, 0.08101775f,
+        0.28013072f, 0.82020664f, -0.10033737f,
+        -0.10378151f, -0.07290726f, 1.26574652f);
+}
+
+__DEVICE__ float3 XYZtoFilmLightEGamut(float3 in) {
+    return applyMatrix(in,
+        1.52505277f, -0.31591351f, -0.12265826f,
+        -0.50915256f, 1.33332741f, 0.13828437f,
+        0.09571535f, 0.05089744f, 0.78795577f);
+}
+
+// Fuji F Gamut
+__DEVICE__ float3 FujiFGamuttoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.63695805f, 0.14461690f, 0.16888098f,
+        0.26270021f, 0.67799807f, 0.05930172f,
+        0.00000000f, 0.02807269f, 1.06098506f);
+}
+
+__DEVICE__ float3 XYZtoFujiFGamut(float3 in) {
+    return applyMatrix(in,
+        1.71665119f, -0.35567078f, -0.25336628f,
+        -0.66668435f, 1.61648124f, 0.01576855f,
+        0.01763986f, -0.04277061f, 0.94210312f);
+}
+
+// Panasonic V-Gamut
+__DEVICE__ float3 PanasonicVGamuttoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.679644f, 0.152211f, 0.1186f,
+        0.260686f, 0.774894f, -0.03558f,
+        -0.00931f, -0.004612f, 1.10298f);
+}
+
+__DEVICE__ float3 XYZtoPanasonicVGamut(float3 in) {
+    return applyMatrix(in,
+        1.589012f, -0.313204f, -0.180965f,
+        -0.534053f, 1.396011f, 0.102458f,
+        0.011179f, 0.003194f, 0.905535f);
+}
+
+// Red Wide Gamut
+__DEVICE__ float3 RedWideGamuttoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.735275f, 0.068609f, 0.146571f,
+        0.286694f, 0.842979f, -0.129673f,
+        -0.079681f, -0.347343f, 1.516082f);
+}
+
+__DEVICE__ float3 XYZtoRedWideGamut(float3 in) {
+    return applyMatrix(in,
+        1.41280661f, -0.17752237f, -0.15177038f,
+        -0.48620319f, 1.29069621f, 0.15740028f,
+        -0.03713878f, 0.28637576f, 0.68767961f);
+}
+
+// S-Gamut3
+__DEVICE__ float3 SGamut3toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.7064827132f, 0.1288010498f, 0.1151721641f,
+        0.2709796708f, 0.7866064112f, -0.0575860820f,
+        -0.0096778454f, 0.0046000375f, 1.0941355587f);
+}
+
+__DEVICE__ float3 XYZtoSGamut3(float3 in) {
+    return applyMatrix(in,
+        1.5073998991f, -0.2458221374f, -0.1716116808f,
+        -0.5181517271f, 1.3553912409f, 0.1258786682f,
+        0.0155116982f, -0.0078727714f, 0.9119163656f);
+}
+
+// S-Gamut3.Cine
+__DEVICE__ float3 SGamut3CinetoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.5990839208f, 0.2489255161f, 0.1024464902f,
+        0.2150758201f, 0.8850685017f, -0.1001443219f,
+        -0.0320658495f, -0.0276583907f, 1.1487819910f);
+}
+
+__DEVICE__ float3 XYZtoSGamut3Cine(float3 in) {
+    return applyMatrix(in,
+        1.8467789693f, -0.5259861230f, -0.2105452114f,
+        -0.4441532629f, 1.2594429028f, 0.1493999729f,
+        0.0408554212f, 0.0156408893f, 0.8682072487f);
+}
+
+// Venice S-Gamut3
+__DEVICE__ float3 SGamut3VenicetoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.7442229873f, 0.0779065218f, 0.1283264179f,
+        0.2807824760f, 0.7802857216f, -0.0610681976f,
+        -0.0199292926f, 0.0147965720f, 1.0941904714f);
+}
+
+__DEVICE__ float3 XYZtoSGamut3Venice(float3 in) {
+    return applyMatrix(in,
+        1.3902639751f, -0.1355735343f, -0.1706163892f,
+        -0.4977719313f, 1.3287678225f, 0.1325388483f,
+        0.0320531907f, -0.0204380261f, 0.9090178003f);
+}
+
+// Venice S-Gamut3.Cine
+__DEVICE__ float3 SGamut3VeniceCinetoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.6322608372f, 0.2003700082f, 0.1178250816f,
+        0.2236843589f, 0.8800140616f, -0.1036984205f,
+        -0.0410730320f, -0.0184436117f, 1.1485743945f);
+}
+
+__DEVICE__ float3 XYZtoSGamut3VeniceCine(float3 in) {
+    return applyMatrix(in,
+        1.7070112863f, -0.3930824760f, -0.2106008781f,
+        -0.4275085831f, 1.2369444116f, 0.1555322984f,
+        0.0541778810f, 0.0058060091f, 0.8656109395f);
+}
+
+/////// Display Colorspace conversions
+
+// Rec.709
+__DEVICE__ float3 Rec709toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.41239080f, 0.35758434f, 0.18048079f,
+        0.21263901f, 0.71516868f, 0.07219232f,
+        0.01933082f, 0.11919478f, 0.95053215f);
+}
+
+__DEVICE__ float3 XYZtoRec709(float3 in) {
+    return applyMatrix(in,
+        3.24096994f, -1.53738318f, -0.49861076f,
+        -0.96924364f, 1.87596750f, 0.04155506f,
+        0.05563008f, -0.20397696f, 1.05697151f);
+}
+
+// Rec.2020
+__DEVICE__ float3 Rec2020toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.63695805f, 0.14461690f, 0.16888098f,
+        0.26270021f, 0.67799807f, 0.05930172f,
+        0.00000000f, 0.02807269f, 1.06098506f);
+}
+
+__DEVICE__ float3 XYZtoRec2020(float3 in) {
+    return applyMatrix(in,
+        1.71665119f, -0.35567078f, -0.25336628f,
+        -0.66668435f, 1.61648124f, 0.01576855f,
+        0.01763986f, -0.04277061f, 0.94210312f);
+}
+
+// DCI-P3
+
+__DEVICE__ float3 DCIP3toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.44516982f, 0.27713441f, 0.17228267f,
+        0.20949168f, 0.72159525f, 0.06891307f,
+        -0.00000000f, 0.04706056f, 0.90735539f);
+}
+
+__DEVICE__ float3 XYZtoDCIP3(float3 in) {
+    return applyMatrix(in,
+        2.72539403f, -1.01800301f, -0.44016320f,
+        -0.79516803f, 1.68973205f, 0.02264719f,
+        0.04124189f, -0.08763902f, 1.10092938f);
+}
+
+// P3-D65
+__DEVICE__ float3 P3D65toXYZ(float3 in) {
+    return applyMatrix(in,
+        0.48657095f, 0.26566769f, 0.19821729f,
+        0.22897456f, 0.69173852f, 0.07928691f,
+        0.00000000f, 0.04511338f, 1.04394437f);
+}
+
+__DEVICE__ float3 XYZtoP3D65(float3 in) {
+    return applyMatrix(in,
+        2.49349691f, -0.93138362f, -0.40271078f,
+        -0.82948897f, 1.76266406f, 0.02362469f,
+        0.03584583f, -0.07617239f, 0.95688452f);
+}
+
