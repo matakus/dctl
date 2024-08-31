@@ -1,0 +1,28 @@
+#line 2 //Debugging line
+
+// Simple DCTL to apply luts, you can add a pin and encrypt to protect it if you want. 
+
+// Define Combo Box for LUT selection
+DEFINE_UI_PARAMS(p_Pin, Pin, DCTLUI_VALUE_BOX, 0000)
+DEFINE_UI_PARAMS(lut, LUT, DCTLUI_COMBO_BOX, 0, {arriBase, arriFilm}, {Arri Base, Arri Film})
+
+// Define LUT file locations
+DEFINE_LUT(arriBaseLUT, /Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/Matua/ArriSpecific/Alexa_Base.cube);
+DEFINE_LUT(arriFilmLUT, /Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/Matua/ArriSpecific/Alexa_FilmPrint.cube);
+
+// Main Function
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
+{
+    float3 result = make_float3(p_R, p_G, p_B);
+
+    if (p_Pin == 1111) {
+                // Apply the selected LUT based on the combo box selection
+        if (lut == arriBase) {
+            result = APPLY_LUT(p_R, p_G, p_B, arriBaseLUT);
+        } else if (lut == arriFilm) {
+            result = APPLY_LUT(p_R, p_G, p_B, arriFilmLUT);
+        }
+    } 
+
+    return result;
+}
