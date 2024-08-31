@@ -1,0 +1,852 @@
+#line 2 //Debugging line
+#include "zCCTF.dctl"
+
+DEFINE_UI_PARAMS(p_midGrey, Mid Grey Stops + / -, DCTLUI_SLIDER_FLOAT, 0, -10, 10, 0.01) // Midtone Stop Adjust
+DEFINE_UI_PARAMS(p_TransferFunctionIn, Transfer Function In, DCTLUI_COMBO_BOX, 3, {acesCCIn, acesCCTIn, appleLogIn, arriLogC3In, arriLogC4In, blackmagicFilmGen5In, canonLogIn, canonLog2In, canonLog3In, cineonIn, davinciIntermediateIn, djiDLogIn, filmLightTLogIn, fLogIn, fLog2In, goproProtuneIn, leicaLogIn, nLogIn, vLogIn, redLog3G10In, sonySLogIn, sonySLog2In, sonySLog3In}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
+DEFINE_UI_PARAMS(colourType, Colors, DCTLUI_COMBO_BOX, 0, {elZone, heatMap}, {EL Zone, Heat Map}) //Default is EL Zone
+DEFINE_UI_PARAMS(showGuide, Show Guide, DCTLUI_CHECK_BOX, 1)
+
+
+__DEVICE__ void getColorsELZone(float3 colors[15])
+{
+    colors[0]  = make_float3(0.0f, 0.0f, 0.0f);             // -6 stops (Black)
+    colors[1]  = make_float3(103.0f / 255.0f, 54.0f / 255.0f, 152.0f / 255.0f);  // -5 stops (R103 G54 B152)
+    colors[2]  = make_float3(43.0f / 255.0f, 110.0f / 255.0f, 184.0f / 255.0f);  // -4 stops (R43 G110 B184)
+    colors[3]  = make_float3(74.0f / 255.0f, 173.0f / 255.0f, 233.0f / 255.0f);  // -3 stops (R74 G173 B233)
+    colors[4]  = make_float3(76.0f / 255.0f, 160.0f / 255.0f, 49.0f / 255.0f);   // -2 stops (R76 G160 B49)
+    colors[5]  = make_float3(110.0f / 255.0f, 217.0f / 255.0f, 74.0f / 255.0f);  // -1 stops (R110 G217 B74)
+    colors[6]  = make_float3(116.0f / 255.0f, 248.0f / 255.0f, 75.0f / 255.0f);  // -0.5 stops (R116 G248 B75)
+    colors[7]  = make_float3(128.0f / 255.0f, 128.0f / 255.0f, 128.0f / 255.0f); // 0 stops (R128 G128 B128)
+    colors[8]  = make_float3(246.0f / 255.0f, 239.0f / 255.0f, 78.0f / 255.0f);  // +0.5 stops (R246 G239 B78)
+    colors[9]  = make_float3(254.0f / 255.0f, 251.0f / 255.0f, 136.0f / 255.0f); // +1 stops (R254 G251 B136)
+    colors[10] = make_float3(240.0f / 255.0f, 148.0f / 255.0f, 52.0f / 255.0f);  // +2 stops (R240 G148 B52)
+    colors[11] = make_float3(243.0f / 255.0f, 178.0f / 255.0f, 105.0f / 255.0f); // +3 stops (R243 G178 B105)
+    colors[12] = make_float3(233.0f / 255.0f, 52.0f / 255.0f, 31.0f / 255.0f);   // +4 stops (R233 G52 B31)
+    colors[13] = make_float3(236.0f / 255.0f, 113.0f / 255.0f, 108.0f / 255.0f); // +5 stops (R236 G113 B108)
+    colors[14] = make_float3(1.0f, 1.0f, 1.0f);              // +6 stops (White)
+}
+
+__DEVICE__ void getColorsHeatMap(float3 colors[15])
+{
+    colors[0]  = make_float3(8.0f / 255.0f, 8.0f / 255.0f, 124.0f / 255.0f);    // -6 stops (R8 G8 B124)
+    colors[1]  = make_float3(11.0f / 255.0f, 11.0f / 255.0f, 133.0f / 255.0f);  // -5 stops (R11 G11 B133)
+    colors[2]  = make_float3(14.0f / 255.0f, 14.0f / 255.0f, 142.0f / 255.0f);  // -4 stops (R14 G14 B142)
+    colors[3]  = make_float3(17.0f / 255.0f, 17.0f / 255.0f, 151.0f / 255.0f);  // -3 stops (R17 G17 B151)
+    colors[4]  = make_float3(21.0f / 255.0f, 21.0f / 255.0f, 161.0f / 255.0f);  // -2 stops (R21 G21 B161)
+    colors[5]  = make_float3(52.0f / 255.0f, 23.0f / 255.0f, 157.0f / 255.0f);  // -1 stops (R52 G23 B157)
+    colors[6]  = make_float3(83.0f / 255.0f, 25.0f / 255.0f, 153.0f / 255.0f);  // -0.5 stops (R83 G25 B153)
+    colors[7]  = make_float3(129.0f / 255.0f, 20.0f / 255.0f, 105.0f / 255.0f); // 0 stops (R129 G20 B105)
+    colors[8]  = make_float3(175.0f / 255.0f, 15.0f / 255.0f, 57.0f / 255.0f);  // +0.5 stops (R175 G15 B57)
+    colors[9]  = make_float3(221.0f / 255.0f, 10.0f / 255.0f, 10.0f / 255.0f);  // +1 stops (R221 G10 B10)
+    colors[10] = make_float3(232.0f / 255.0f, 87.0f / 255.0f, 6.0f / 255.0f);   // +2 stops (R232 G87 B6)
+    colors[11] = make_float3(243.0f / 255.0f, 164.0f / 255.0f, 3.0f / 255.0f);  // +3 stops (R243 G164 B3)
+    colors[12] = make_float3(255.0f / 255.0f, 242.0f / 255.0f, 0.0f / 255.0f);  // +4 stops (R255 G242 B0)
+    colors[13] = make_float3(255.0f / 255.0f, 248.0f / 255.0f, 127.0f / 255.0f); // +5 stops (R255 G248 B127)
+    colors[14] = make_float3(255.0f / 255.0f, 255.0f / 255.0f, 255.0f / 255.0f); // +6 stops (White)
+}
+
+__DEVICE__ void calculateExposureBands(float stops[15], float p_midGrey, int p_TransferFunctionIn )
+{
+
+float baseMiddleGray = 39.10f / 100.0f;  // Default middle grey constant (39.10% Alexa Mini)
+
+// Mid grey point per camera (IRE %)
+if (p_TransferFunctionIn == acesCCIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == acesCCTIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == appleLogIn) { baseMiddleGray = 47.8f / 100.0f; }
+if (p_TransferFunctionIn == arriLogC3In) { baseMiddleGray = 39.10f / 100.0f; }
+if (p_TransferFunctionIn == arriLogC4In) { baseMiddleGray = 27.8f / 100.0f; }
+if (p_TransferFunctionIn == blackmagicFilmGen5In) { baseMiddleGray = 38.4f / 100.0f; }
+if (p_TransferFunctionIn == canonLogIn) { baseMiddleGray = 35.0f / 100.0f; }
+if (p_TransferFunctionIn == canonLog2In) { baseMiddleGray = 32.0f / 100.0f; }
+if (p_TransferFunctionIn == canonLog3In) { baseMiddleGray = 39.10f / 100.0f; }
+if (p_TransferFunctionIn == cineonIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == davinciIntermediateIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == djiDLogIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == filmLightTLogIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == fLogIn) { baseMiddleGray = 46.3f / 100.0f; }
+if (p_TransferFunctionIn == fLog2In) { baseMiddleGray = 38.4f / 100.0f; }
+if (p_TransferFunctionIn == goproProtuneIn) { baseMiddleGray = 68.0f / 100.0f; }
+if (p_TransferFunctionIn == leicaLogIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == nLogIn) { baseMiddleGray = 18.0f / 100.0f; }
+if (p_TransferFunctionIn == redLog3G10In) { baseMiddleGray = 46.1f / 100.0f; }
+if (p_TransferFunctionIn == sonySLogIn) { baseMiddleGray = 37.6f / 100.0f; }
+if (p_TransferFunctionIn == sonySLog2In) { baseMiddleGray = 32.3f / 100.0f; }
+if (p_TransferFunctionIn == sonySLog3In) { baseMiddleGray = 41.1f / 100.0f; }
+if (p_TransferFunctionIn == vLogIn) { baseMiddleGray = 42.3f / 100.0f; }
+
+
+    // Adjust the middle grey value based on the p_midGrey slider
+    float adjustedMiddleGray = baseMiddleGray * _exp2f(p_midGrey);
+
+    stops[0] = adjustedMiddleGray / _exp2f(6.0f);  // -6 stops
+    stops[1] = adjustedMiddleGray / _exp2f(5.0f);  // -5 stops
+    stops[2] = adjustedMiddleGray / _exp2f(4.0f);  // -4 stops
+    stops[3] = adjustedMiddleGray / _exp2f(3.0f);  // -3 stops
+    stops[4] = adjustedMiddleGray / _exp2f(2.0f);  // -2 stops
+    stops[5] = adjustedMiddleGray / _exp2f(1.0f);  // -1 stops
+    stops[6] = adjustedMiddleGray / _exp2f(0.5f);  // -0.5 stops
+    stops[7] = adjustedMiddleGray;                 // 0 stops
+    stops[8] = adjustedMiddleGray * _exp2f(0.5f);  // +0.5 stops
+    stops[9] = adjustedMiddleGray * _exp2f(1.0f);  // +1 stop
+    stops[10] = adjustedMiddleGray * _exp2f(2.0f); // +2 stops
+    stops[11] = adjustedMiddleGray * _exp2f(3.0f); // +3 stops
+    stops[12] = adjustedMiddleGray * _exp2f(4.0f); // +4 stops
+    stops[13] = adjustedMiddleGray * _exp2f(5.0f); // +5 stops
+    stops[14] = adjustedMiddleGray * _exp2f(6.0f); // +6 stops
+}
+
+__DEVICE__ float3 getColorForExposure(float luminance, float stops[15], float3 colors[15])
+{
+    for (int i = 0; i < 14; ++i)
+    {
+        if (luminance >= stops[i] && luminance < stops[i + 1])
+        {
+            return colors[i];
+        }
+    }
+
+    // If the luminance value is above the highest stop, apply the highest color
+    if (luminance >= stops[14])
+    {
+        return colors[14];
+    }
+
+    // If the luminance value is below the lowest stop, apply the lowest color
+    return colors[0];
+}
+
+__DEVICE__ float3 showHelper(int p_Width, int p_Height, int p_X, int p_Y, float3 colors[15])
+{
+    // Calculate the threshold for each 2.5% row of pixels
+    int threshold = p_Height * 0.025;
+    int threshold2 = p_Height * 0.02;
+    int boxWidth = p_Width / 15; // Change to 15 to match the new color guide
+
+    float3 bgColour = make_float3(0.25f, 0.25f, 0.25f); // Dark grey color
+    float3 bgColour2 = make_float3(0.35f, 0.35f, 0.35f); // Grey color
+
+if (p_Y >= p_Height - 2 * threshold) 
+    {
+        // Check if the pixel is in the bottom row
+        if (p_Y >= p_Height - threshold) 
+        {
+            int blackBoxIndex = 0; // Black box index
+            int blackBoxStartX = boxWidth * blackBoxIndex;
+            int blackBoxEndX = blackBoxStartX + boxWidth;
+
+            if (p_X >= blackBoxStartX && p_X < blackBoxEndX)
+            {
+                // Define the coordinates for the number '-6'
+                int pixelMapMinus6[5][7] = {
+                    {0, 0, 0, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 1, 0, 0},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 1, 0, 1},
+                    {0, 0, 0, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = blackBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-6'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapMinus6[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour; // White for '-6', black for the rest
+            }
+
+            // Check if the current pixel is within the purple square
+            int purpleBoxIndex = 1; // Purple box index
+            int purpleBoxStartX = boxWidth * purpleBoxIndex;
+            int purpleBoxEndX = purpleBoxStartX + boxWidth;
+
+            if (p_X >= purpleBoxStartX && p_X < purpleBoxEndX)
+            {
+                // Define the coordinates for the number '-5'
+                int pixelMapMinus5[5][7] = {
+                    {0, 0, 0, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 1, 0, 0},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = purpleBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-5'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapMinus5[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour2; // White for '-5', purple for the rest
+            }
+
+            // Check if the current pixel is within the blue square
+            int blueBoxIndex = 2; // Blue box index
+            int blueBoxStartX = boxWidth * blueBoxIndex;
+            int blueBoxEndX = blueBoxStartX + boxWidth;
+
+            if (p_X >= blueBoxStartX && p_X < blueBoxEndX)
+            {
+                // Define the coordinates for the number '-4'
+                int pixelMapMinus4[5][7] = {
+                    {0, 0, 0, 0, 1, 0, 1},
+                    {0, 0, 0, 0, 1, 0, 1},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 0, 0, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = blueBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-4'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapMinus4[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour; // White for '-4', blue for the rest
+            }
+
+            // Check if the current pixel is within the cyan square
+            int cyanBoxIndex = 3; // Cyan box index
+            int cyanBoxStartX = boxWidth * cyanBoxIndex;
+            int cyanBoxEndX = cyanBoxStartX + boxWidth;
+
+            if (p_X >= cyanBoxStartX && p_X < cyanBoxEndX)
+            {
+                // Define the coordinates for the number '-3'
+                int pixelMapMinus3[5][7] = {
+                    {0, 0, 0, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 0, 0, 1},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = cyanBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-3'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapMinus3[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour2; // White for '-3', cyan for the rest
+            }
+
+            // Check if the current pixel is within the green square
+            int greenBoxIndex = 4; // Green box index
+            int greenBoxStartX = boxWidth * greenBoxIndex;
+            int greenBoxEndX = greenBoxStartX + boxWidth;
+
+            if (p_X >= greenBoxStartX && p_X < greenBoxEndX)
+            {
+                // Define the coordinates for the number '-2'
+                int pixelMapMinus2[5][7] = {
+                    {0, 0, 0, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 0, 0, 1},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 1, 0, 0},
+                    {0, 0, 0, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = greenBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-2'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapMinus2[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour; // White for '-2', green for the rest
+            }
+
+            // Check if the current pixel is within the lime square
+            int limeBoxIndex = 5; // Lime box index
+            int limeBoxStartX = boxWidth * limeBoxIndex;
+            int limeBoxEndX = limeBoxStartX + boxWidth;
+
+            if (p_X >= limeBoxStartX && p_X < limeBoxEndX)
+            {
+                // Define the coordinates for the number '-1'
+                int pixelMapMinus1[5][7] = {
+                    {0, 0, 0, 0, 0, 1, 0},
+                    {0, 0, 0, 0, 1, 1, 0},
+                    {1, 1, 1, 0, 0, 1, 0},
+                    {0, 0, 0, 0, 0, 1, 0},
+                    {0, 0, 0, 0, 0, 1, 0}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = limeBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-1'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapMinus1[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour2; // White for '-1', lime for the rest
+            }
+
+            // Check if the current pixel is within the bright green square
+            int brightGreenBoxIndex = 6; // Bright green box index
+            int brightGreenBoxStartX = boxWidth * brightGreenBoxIndex;
+            int brightGreenBoxEndX = brightGreenBoxStartX + boxWidth;
+
+            if (p_X >= brightGreenBoxStartX && p_X < brightGreenBoxEndX)
+            {
+                // Define the coordinates for the number '-0.5'
+                int pixelMapMinus5[5][13] = {
+                    {0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0},
+                    {1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1},
+                    {0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 13 * scale;
+                int startX = brightGreenBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-5'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 13 * scale; ++x)
+                    {
+                        if (pixelMapMinus5[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour; // White for '-0.5', bright green for the rest
+            }
+
+            // Check if the current pixel is within the mid-grey box
+            int greyBoxIndex = 7; // Mid-grey box index
+            int greyBoxStartX = boxWidth * greyBoxIndex;
+            int greyBoxEndX = greyBoxStartX + boxWidth;
+
+            if (p_X >= greyBoxStartX && p_X < greyBoxEndX)
+            {
+                // Define the coordinates for the number '0'
+                int pixelMapZero[5][7] = {
+                    {0, 0, 1, 1, 1, 0, 0},
+                    {0, 0, 1, 0, 1, 0, 0},
+                    {0, 0, 1, 0, 1, 0, 0},
+                    {0, 0, 1, 0, 1, 0, 0},
+                    {0, 0, 1, 1, 1, 0, 0}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = greyBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '0'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapZero[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour2; // White for '0', mid-grey for the rest
+            }
+
+            // Check if the current pixel is within the yellow square
+            int yellowBoxIndex = 8; // Yellow box index
+            int yellowBoxStartX = boxWidth * yellowBoxIndex;
+            int yellowBoxEndX = yellowBoxStartX + boxWidth;
+
+            if (p_X >= yellowBoxStartX && p_X < yellowBoxEndX)
+            {
+                // Define the coordinates for the number '-5'
+                int pixelMapMinus5[5][13] = {
+                    {0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0},
+                    {1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 13 * scale;
+                int startX = yellowBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '-5'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 13 * scale; ++x)
+                    {
+                        if (pixelMapMinus5[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour; // White for '-5', yellow for the rest
+            }
+
+            // Check if the current pixel is within the light yellow
+            int lightYellowBoxIndex = 9; // Light yellow box index
+            int lightYellowBoxStartX = boxWidth * lightYellowBoxIndex;
+            int lightYellowBoxEndX = lightYellowBoxStartX + boxWidth;
+
+            if (p_X >= lightYellowBoxStartX && p_X < lightYellowBoxEndX)
+            {
+                // Define the coordinates for the number '+1'
+                int pixelMapPlus1[5][7] = {
+                    {0, 0, 0, 0, 0, 1, 0},
+                    {0, 1, 0, 0, 1, 1, 0},
+                    {1, 1, 1, 0, 0, 1, 0},
+                    {0, 1, 0, 0, 0, 1, 0},
+                    {0, 0, 0, 0, 0, 1, 0}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = lightYellowBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '+1'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapPlus1[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour2; // White for '+1', light yellow for the rest
+            }
+
+            // Check if the current pixel is within the orange square
+            int orangeBoxIndex = 10; // Orange box index
+            int orangeBoxStartX = boxWidth * orangeBoxIndex;
+            int orangeBoxEndX = orangeBoxStartX + boxWidth;
+
+            if (p_X >= orangeBoxStartX && p_X < orangeBoxEndX)
+            {
+                // Define the coordinates for the number '+2'
+                int pixelMapPlus2[5][7] = {
+                    {0, 0, 0, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 0, 0, 1},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 1, 0, 0},
+                    {0, 0, 0, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = orangeBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '+2'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapPlus2[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour; // White for '+2', orange for the rest
+            }
+
+                        // Check if the current pixel is within the light orange square
+            int lightOrangeBoxIndex = 11; // Light orange box index
+            int lightOrangeBoxStartX = boxWidth * lightOrangeBoxIndex;
+            int lightOrangeBoxEndX = lightOrangeBoxStartX + boxWidth;
+
+            if (p_X >= lightOrangeBoxStartX && p_X < lightOrangeBoxEndX)
+            {
+                // Define the coordinates for the number '+3'
+                int pixelMapPlus3[5][7] = {
+                    {0, 0, 0, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 0, 0, 1},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = lightOrangeBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '+3'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapPlus3[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour2; // White for '+3', light orange for the rest
+            }
+
+                        // Check if the current pixel is within the red square
+            int redBoxIndex = 12; // Red box index
+            int redBoxStartX = boxWidth * redBoxIndex;
+            int redBoxEndX = redBoxStartX + boxWidth;
+
+            if (p_X >= redBoxStartX && p_X < redBoxEndX)
+            {
+                // Define the coordinates for the number '+4'
+                int pixelMapPlus4[5][7] = {
+                    {0, 0, 0, 0, 1, 0, 1},
+                    {0, 1, 0, 0, 1, 0, 1},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 0, 0, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = redBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '+4'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapPlus4[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour; // White for '+4', red for the rest
+            }
+
+                        // Check if the current pixel is within the light red square
+            int lightRedBoxIndex = 13; // Light red box index
+            int lightRedBoxStartX = boxWidth * lightRedBoxIndex;
+            int lightRedBoxEndX = lightRedBoxStartX + boxWidth;
+
+            if (p_X >= lightRedBoxStartX && p_X < lightRedBoxEndX)
+            {
+                // Define the coordinates for the number '+5'
+                int pixelMapPlus5[5][7] = {
+                    {0, 0, 0, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 1, 0, 0},
+                    {1, 1, 1, 0, 1, 1, 1},
+                    {0, 1, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 0, 1, 1, 1}
+                };
+
+                int scale = threshold / 10;
+                int textWidth = 7 * scale;
+                int startX = lightRedBoxStartX + (boxWidth - textWidth) / 2;
+                int textHeight = 5 * scale;
+                int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+                bool isWhitePixel = false;
+                // Check if the current pixel is part of the '+5'
+                for (int y = 0; y < 5 * scale; ++y)
+                {
+                    for (int x = 0; x < 7 * scale; ++x)
+                    {
+                        if (pixelMapPlus5[y / scale][x / scale] == 1)
+                        {
+                            if (p_X == startX + x && p_Y == startY + y)
+                            {
+                                isWhitePixel = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isWhitePixel) break;
+                }
+
+                return isWhitePixel ? make_float3(1, 1, 1) : bgColour2; // White for '+5', light red for the rest
+            }
+
+        int whiteBoxIndex = 14; // White box index
+        int whiteBoxStartX = boxWidth * whiteBoxIndex;
+        int whiteBoxEndX = whiteBoxStartX + boxWidth;
+
+        if (p_X >= whiteBoxStartX && p_X < whiteBoxEndX)
+        {
+            // Define the coordinates for the number '+6'
+            int pixelMapPlus6[5][7] = {
+                {0, 0, 0, 0, 1, 1, 1},
+                {0, 1, 0, 0, 1, 0, 0},
+                {1, 1, 1, 0, 1, 1, 1},
+                {0, 1, 0, 0, 1, 0, 1},
+                {0, 0, 0, 0, 1, 1, 1}
+            };
+
+            int scale = threshold / 10;
+            int textWidth = 7 * scale;
+            int startX = whiteBoxStartX + (boxWidth - textWidth) / 2;
+            int textHeight = 5 * scale;
+            int startY = p_Height - threshold + (threshold - textHeight) / 2;
+
+            bool isBlackPixel = false;
+            // Check if the current pixel is part of the '+6'
+            for (int y = 0; y < 5 * scale; ++y)
+            {
+                for (int x = 0; x < 7 * scale; ++x)
+                {
+                    if (pixelMapPlus6[y / scale][x / scale] == 1)
+                    {
+                        if (p_X == startX + x && p_Y == startY + y)
+                        {
+                            isBlackPixel = true;
+                            break;
+                        }
+                    }
+                }
+                if (isBlackPixel) break;
+            }
+
+            return isBlackPixel ? make_float3(1, 1, 1) : bgColour; // White for '+6', white for the rest
+        }
+
+
+        }
+
+        // If the pixel is in the above bottom row, make it dark grey
+        else if (p_Y >= p_Height - 2 * threshold2 && p_Y < p_Height - threshold2) 
+        {
+            int colorIndex = (p_X / boxWidth) % 15;  // Determine the color based on the horizontal position
+            return colors[colorIndex];
+        }
+    }
+
+    return make_float3(-1.0f, -1.0f, -1.0f); // Indicator that the pixel is not in the bottom 5%
+}
+
+// Helper Functions
+__DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
+if (transferFunc == acesCCIn) return logToLinACEScc(in);
+if (transferFunc == acesCCTIn) return logToLinACEScct(in);
+if (transferFunc == appleLogIn) return logToLinAppleLogProfile(in);
+if (transferFunc == arriLogC3In) return logToLinArriLogC3(in);
+if (transferFunc == arriLogC4In) return logToLinArriLogC4(in);
+if (transferFunc == blackmagicFilmGen5In) return logToLinBlackmagicFilmGen5(in);
+if (transferFunc == canonLogIn) return logToLinCanonLog(in);
+if (transferFunc == canonLog2In) return logToLinCanonLog2(in);
+if (transferFunc == canonLog3In) return logToLinCanonLog3(in);
+if (transferFunc == cineonIn) return logToLinCineon(in);
+if (transferFunc == davinciIntermediateIn) return logToLinDavinciIntermediate(in);
+if (transferFunc == djiDLogIn) return logToLinDJIDLog(in);
+if (transferFunc == filmLightTLogIn) return logToLinFilmLightTLog(in);
+if (transferFunc == fLogIn) return logToLinFLog(in);
+if (transferFunc == fLog2In) return logToLinFLog2(in);
+if (transferFunc == goproProtuneIn) return logToLinProtune(in);
+if (transferFunc == leicaLogIn) return logToLinLeicaLog(in);
+if (transferFunc == nLogIn) return logToLinNLog(in);
+if (transferFunc == redLog3G10In) return logToLinRedLog3g10(in);
+if (transferFunc == sonySLogIn) return logToLinSonySLog(in);
+if (transferFunc == sonySLog2In) return logToLinSonySLog2(in);
+if (transferFunc == sonySLog3In) return logToLinSonySLog3(in);
+if (transferFunc == vLogIn) return logToLinVLog(in);
+}
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
+{
+    float3 out = make_float3(p_R, p_G, p_B);
+
+    // Convert to linear
+    float3 linColor = convertToLinear(out, p_TransferFunctionIn);
+
+    // Get the selected colors array
+    float3 colors[15];
+    if ((int)colourType == 0) {
+        getColorsELZone(colors);
+    } else {
+        getColorsHeatMap(colors);
+    }
+
+    // Apply Guide
+    if (showGuide == 1){
+        float3 bottomColor = showHelper(p_Width, p_Height, p_X, p_Y, colors);
+        if (bottomColor.x >= 0) {
+            return bottomColor;
+        }
+    }
+
+    // Calculate luminance
+    float luminance = (0.2126f * linColor.x) + (0.7152f * linColor.y) + (0.0722f * linColor.z);
+
+    // Calculate exposure bands
+    float stops[15];
+    calculateExposureBands(stops, p_midGrey, p_TransferFunctionIn);
+
+    // Determine the color for the current pixel based on its luminance
+    float3 result = getColorForExposure(luminance, stops, colors);
+
+    return result;
+}

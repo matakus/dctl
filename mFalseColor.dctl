@@ -1,0 +1,112 @@
+#include "zCCTF.dctl"
+
+__DEVICE__ void calculateIREBands(float bands[12])
+{
+    // Define IRE ranges
+    bands[0] = 0.0f;    // Lower bound for Purple
+    bands[1] = 2.5f;    // Blue
+    bands[2] = 4.0f;    // Out of range
+    bands[3] = 38.0f;   // Green (Middle Grey)
+    bands[4] = 42.0f;   // Out of range
+    bands[5] = 52.0f;   // Pink (One Stop Over)
+    bands[6] = 56.0f;   // Out of range
+    bands[7] = 97.0f;   // Yellow
+    bands[8] = 99.0f;   // Red
+    bands[9] = 100.0f;  // Upper bound for Red
+}
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
+{
+    // Convert the input color to greyscale
+    float luminance = 0.2126f * p_R + 0.7152f * p_G + 0.0722f * p_B;
+
+    // Calculate luminance in IRE (assuming REC709 input)
+    float luminanceIRE = luminance * 100.0f;
+
+    // Calculate IRE bands
+    float bands[10];
+    calculateIREBands(bands);
+
+    // Define colors for each range based on the provided chart
+    float3 colors[6];
+    colors[0] = make_float3(0.5f, 0.0f, 0.5f);     // Purple
+    colors[1] = make_float3(0.0f, 0.0f, 1.0f);     // Blue
+    colors[2] = make_float3(0.0f, 1.0f, 0.0f);     // Green (Middle Grey)
+    colors[3] = make_float3(1.0f, 0.75f, 0.79f);   // Pink (One Stop Over)
+    colors[4] = make_float3(1.0f, 1.0f, 0.0f);     // Yellow
+    colors[5] = make_float3(1.0f, 0.0f, 0.0f);     // Red
+
+    // Default color for out-of-range values is the original luma
+    float3 grey = make_float3(luminance, luminance, luminance);
+
+    // Determine which color to apply based on the luminance value
+    float3 result = grey; // Default to the original luma for out-of-range values
+    if (luminanceIRE >= bands[0] && luminanceIRE < bands[1])
+    {
+        result = colors[0]; // Purple
+    }
+    else if (luminanceIRE >= bands[1] && luminanceIRE < bands[2])
+    {
+        result = colors[1]; // Blue
+    }
+    else if (luminanceIRE >= bands[3] && luminanceIRE < bands[4])
+    {
+        result = colors[2]; // Green
+    }
+    else if (luminanceIRE >= bands[5] && luminanceIRE < bands[6])
+    {
+        result = colors[3]; // Pink
+    }
+    else if (luminanceIRE >= bands[7] && luminanceIRE < bands[8])
+    {
+        result = colors[4]; // Yellow
+    }
+    else if (luminanceIRE >= bands[8] && luminanceIRE <= bands[9])
+    {
+        result = colors[5]; // Red
+    }
+    else if (luminanceIRE > bands[9])
+    {
+        result = colors[5]; // Red for values over 100
+    }
+
+    // Create a gradient in the bottom 5% of the image proportional to IRE
+    if (p_Y >= (0.95f * p_Height))
+    {
+        float relativeX = (float)p_X / p_Width * 100.0f;
+        float gradientValue = relativeX / 100.0f;
+        float3 gradientColor = make_float3(gradientValue, gradientValue, gradientValue);
+
+        // Apply colors with 100% opacity on top of the gradient
+        if (relativeX >= bands[0] && relativeX < bands[1])
+        {
+            result = colors[0]; // Purple
+        }
+        else if (relativeX >= bands[1] && relativeX < bands[2])
+        {
+            result = colors[1]; // Blue
+        }
+        else if (relativeX >= bands[3] && relativeX < bands[4])
+        {
+            result = colors[2]; // Green (Middle Grey)
+        }
+        else if (relativeX >= bands[5] && relativeX < bands[6])
+        {
+            result = colors[3]; // Pink (One Stop Over)
+        }
+        else if (relativeX >= bands[7] && relativeX < bands[8])
+        {
+            result = colors[4]; // Yellow
+        }
+        else if (relativeX >= bands[8] && relativeX <= bands[9])
+        {
+            result = colors[5]; // Red
+        }
+        else
+        {
+            result = gradientColor; // Gradient from black to white
+        }
+    }
+
+    return result;
+}

@@ -1,10 +1,10 @@
 #line 2 //Debugging line
 
-// Saturation Enhancer DCTL
+// Saturation Enhancer DCTL - 1.03 //m.c
 
 // Define user interface parameters for DCTL
-DEFINE_UI_PARAMS(Saturation, Saturation, DCTLUI_SLIDER_FLOAT, 0, -1, 1.0, 0.1)       // Saturation adjustment control
-DEFINE_UI_PARAMS(Vibrance, Vibrance, DCTLUI_SLIDER_FLOAT, 0.0, -1.0, 1.0, 0.05)      // Vibrance adjustment control
+DEFINE_UI_PARAMS(saturation, Saturation, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)       // Saturation adjustment control
+DEFINE_UI_PARAMS(vibrance, Vibrance, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)      // Vibrance adjustment control
 DEFINE_UI_PARAMS(highlightMask, Highlight Recovery, DCTLUI_SLIDER_FLOAT, 0, 0.0, 1, 0.01) // Highlight recovery strength control
 DEFINE_UI_PARAMS(shadowMask, Shadow Recovery, DCTLUI_SLIDER_FLOAT, 0, 0.0, 1, 0.01)  // Shadow recovery strength control
 DEFINE_UI_PARAMS(Mix, Mix, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.01)                 // Control for mixing processed and original image
@@ -28,26 +28,44 @@ __DEVICE__ float sMask(float R, float G, float B, float sliderValue) {
                       _powf(_fmaxf(B, 0.0f), multiplier / 3.0f));
 }
 
-// Main transformation function
-__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
-    float3 rgb = make_float3(_fmaxf(p_R, 0.0f), _fmaxf(p_G, 0.0f), _fmaxf(p_B, 0.0f)); // Ensure initial RGB values are non-negative
+
+__DEVICE__ float3 adjustSaturation(float3 rgb, float sat, float vibrance) {
+    // Subtract 1 from both Saturation and Vibrance inputs
+    sat -= 1.0f;
+    vibrance -= 1.0f;
+
     float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));                                  // Calculate the achromatic axis (brightness level)
     float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));                             // Minimum value among RGB components
     float currentSaturation = ach == 0.0f ? 0.0f : (ach - minColor) / ach;            // Compute current saturation
 
     // Adjust the application of Vibrance
-    float adjustedSaturationEffect = Vibrance > 0 ? 
-        1.0f + (1.0f - currentSaturation) * Vibrance : 
-        1.0f + currentSaturation * Vibrance;
+    float adjustedSaturationEffect = vibrance > 0 ? 
+        1.0f + (1.0f - currentSaturation) * vibrance : 
+        1.0f + currentSaturation * vibrance;
 
     // Compute distance from the achromatic axis for saturation adjustment
-    float3 distance = ach == 0.0f ? 0.0f : (ach - rgb) / _fabs(ach);
-    distance *= (1.0f + Saturation) * adjustedSaturationEffect;
+    float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
+    distance *= (1.0f + sat) * adjustedSaturationEffect;
 
     // Calculate new RGB values with adjusted saturation
-    float3 newRGB = make_float3(_fmaxf(ach - distance.x * _fabs(ach), 0.0f),
-                                _fmaxf(ach - distance.y * _fabs(ach), 0.0f),
-                                _fmaxf(ach - distance.z * _fabs(ach), 0.0f));
+    float3 newRGB = ach - distance * _fabs(ach);
+
+    // Clamp the new RGB values to ensure no negative values
+    newRGB.x = _fmaxf(newRGB.x, 0.0f);
+    newRGB.y = _fmaxf(newRGB.y, 0.0f);
+    newRGB.z = _fmaxf(newRGB.z, 0.0f);
+
+    return newRGB;
+}
+
+
+// Main transformation function
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+
+    float3 rgb = make_float3(p_R, p_G,p_B);
+
+    // Call adjustSaturation to adjust the saturation and vibrance
+    float3 newRGB = adjustSaturation(rgb, saturation, vibrance);
 
     // Mix the new and original RGB values
     newRGB = rgb * (1.0f - Mix) + newRGB * Mix;
@@ -59,7 +77,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 
     // Combine high and low masks, ensuring the result is non-negative
     float3 outputRGB = rgb * combinedMask + (1.0f - combinedMask) * newRGB;
-    outputRGB = make_float3(_fmaxf(outputRGB.x, 0.0f), _fmaxf(outputRGB.y, 0.0f), _fmaxf(outputRGB.z, 0.0f)); // Ensure no negative values
+    outputRGB = make_float3(outputRGB.x, outputRGB.y,outputRGB.z);
 
     // Check if Show mask box is ticked
     if (showMask) {
@@ -68,3 +86,4 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 
     return outputRGB; // Output the final RGB values
 }
+
