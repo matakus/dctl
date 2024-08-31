@@ -1,18 +1,38 @@
 #include "zCCTF.dctl"
 
+// Tool that shows false color according to ARRI's IRE ranges. Currently expects a LogC3 or 709 input
+//1.03 //m.c
+
+DEFINE_UI_PARAMS(signalType, Signal Input, DCTLUI_COMBO_BOX, 0, {rec709, logC3}, {Rec709, Log})
+
 __DEVICE__ void calculateIREBands(float bands[12])
 {
-    // Define IRE ranges
+    // Define IRE ranges for Rec709
     bands[0] = 0.0f;    // Lower bound for Purple
     bands[1] = 2.5f;    // Blue
-    bands[2] = 4.0f;    // Out of range
+    bands[2] = 4.0f;    // Ignored
     bands[3] = 38.0f;   // Green (Middle Grey)
-    bands[4] = 42.0f;   // Out of range
+    bands[4] = 42.0f;   // Ignored
     bands[5] = 52.0f;   // Pink (One Stop Over)
-    bands[6] = 56.0f;   // Out of range
+    bands[6] = 56.0f;   // Ignored
     bands[7] = 97.0f;   // Yellow
     bands[8] = 99.0f;   // Red
     bands[9] = 100.0f;  // Upper bound for Red
+}
+
+__DEVICE__ void calculateIREBandsLogC3(float bands[12])
+{
+    // Define IRE ranges for LogC3
+    bands[0] = 0.0f;    // Lower bound for Purple
+    bands[1] = 7.0f;    // Blue (darker tones)
+    bands[2] = 10.0f;   // Ignored
+    bands[3] = 40.0f;   // Green (Middle Grey, ~18% grey)
+    bands[4] = 45.0f;   // Ignored
+    bands[5] = 60.0f;   // Pink (One Stop Over)
+    bands[6] = 65.0f;   // Ignored
+    bands[7] = 85.0f;   // Yellow (highlights)
+    bands[8] = 90.0f;   // Red (near clipping)
+    bands[9] = 100.0f;  // Upper bound for Red (clipping)
 }
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B)
@@ -23,9 +43,13 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     // Calculate luminance in IRE (assuming REC709 input)
     float luminanceIRE = luminance * 100.0f;
 
-    // Calculate IRE bands
+    // Calculate IRE bands based on the signal type
     float bands[10];
-    calculateIREBands(bands);
+    if (signalType == 1) {
+        calculateIREBandsLogC3(bands);
+    } else {
+        calculateIREBands(bands);
+    }
 
     // Define colors for each range based on the provided chart
     float3 colors[6];

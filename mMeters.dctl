@@ -1,6 +1,9 @@
 #line 2 //Debugging line
 #include "zCCTF.dctl"
 
+// Tool to help see what the lighitng ratios of the footage are. Works in bands of stops. 
+//1.03 //m.c
+
 DEFINE_UI_PARAMS(p_midGrey, Mid Grey Stops + / -, DCTLUI_SLIDER_FLOAT, 0, -10, 10, 0.01) // Midtone Stop Adjust
 DEFINE_UI_PARAMS(p_TransferFunctionIn, Transfer Function In, DCTLUI_COMBO_BOX, 3, {acesCCIn, acesCCTIn, appleLogIn, arriLogC3In, arriLogC4In, blackmagicFilmGen5In, canonLogIn, canonLog2In, canonLog3In, cineonIn, davinciIntermediateIn, djiDLogIn, filmLightTLogIn, fLogIn, fLog2In, goproProtuneIn, leicaLogIn, nLogIn, vLogIn, redLog3G10In, sonySLogIn, sonySLog2In, sonySLog3In}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
 DEFINE_UI_PARAMS(colourType, Colors, DCTLUI_COMBO_BOX, 0, {elZone, heatMap}, {EL Zone, Heat Map}) //Default is EL Zone
@@ -9,7 +12,7 @@ DEFINE_UI_PARAMS(showGuide, Show Guide, DCTLUI_CHECK_BOX, 1)
 
 __DEVICE__ void getColorsELZone(float3 colors[15])
 {
-    colors[0]  = make_float3(0.0f, 0.0f, 0.0f);             // -6 stops (Black)
+    colors[0]  = make_float3(0.0f, 0.0f, 0.0f);                                  // -6 stops (Black)
     colors[1]  = make_float3(103.0f / 255.0f, 54.0f / 255.0f, 152.0f / 255.0f);  // -5 stops (R103 G54 B152)
     colors[2]  = make_float3(43.0f / 255.0f, 110.0f / 255.0f, 184.0f / 255.0f);  // -4 stops (R43 G110 B184)
     colors[3]  = make_float3(74.0f / 255.0f, 173.0f / 255.0f, 233.0f / 255.0f);  // -3 stops (R74 G173 B233)
@@ -23,7 +26,7 @@ __DEVICE__ void getColorsELZone(float3 colors[15])
     colors[11] = make_float3(243.0f / 255.0f, 178.0f / 255.0f, 105.0f / 255.0f); // +3 stops (R243 G178 B105)
     colors[12] = make_float3(233.0f / 255.0f, 52.0f / 255.0f, 31.0f / 255.0f);   // +4 stops (R233 G52 B31)
     colors[13] = make_float3(236.0f / 255.0f, 113.0f / 255.0f, 108.0f / 255.0f); // +5 stops (R236 G113 B108)
-    colors[14] = make_float3(1.0f, 1.0f, 1.0f);              // +6 stops (White)
+    colors[14] = make_float3(1.0f, 1.0f, 1.0f);                                  // +6 stops (White)
 }
 
 __DEVICE__ void getColorsHeatMap(float3 colors[15])

@@ -1,10 +1,13 @@
 #line 2 // This line makes line numbers appear correctly in the log file
 
+// Tool to help see if a selected hue for skintone is correct
+//1.03 //m.c
+
 // UI parameter definitions
 DEFINE_UI_PARAMS(p_TargetHue, Target Skintone, DCTLUI_SLIDER_FLOAT, 0.15, -0.5, 0.5, 0.001) // Hue to be turned green
 DEFINE_UI_PARAMS(p_TargetWidth, Skintone Width, DCTLUI_SLIDER_FLOAT, 0.025, 0.01, 0.05, 0.001) // Width of the skintone selected
 DEFINE_UI_PARAMS(p_dimToggle, Log Input, DCTLUI_CHECK_BOX, 1)
-DEFINE_UI_PARAMS(p_showHelper, Show Helper, DCTLUI_CHECK_BOX, 1)
+DEFINE_UI_PARAMS(p_showHelper, Show Guide, DCTLUI_CHECK_BOX, 1)
 DEFINE_UI_PARAMS(p_keepOriginal, Keep Original Color, DCTLUI_CHECK_BOX, 0)
 
 // Convert RGB color to HSL color

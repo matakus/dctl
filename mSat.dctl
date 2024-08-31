@@ -1,6 +1,7 @@
 #line 2 //Debugging line
 
-// Saturation Enhancer DCTL - 1.03 //m.c
+// Saturation - Adjusts saturation based and vibracne based on the current saturation of the image.
+//1.03 //m.c
 
 // Define user interface parameters for DCTL
 DEFINE_UI_PARAMS(saturation, Saturation, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)       // Saturation adjustment control

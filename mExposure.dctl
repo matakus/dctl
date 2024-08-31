@@ -1,10 +1,8 @@
 #line 2 //Debugging line
 
-// Exposure DCTL 1.03 //m.c
-// Adjusts the exposure of an image in stops, with the ability to mask it to the highlights and shadows
-// You can also have control over the saturation
+// Exposure DCTL - Adjusts the exposure of an image in stops, with the ability to mask it to the highlights and shadows and adjust the saturation in the affected area.
+//1.03 //m.c
 
-//
 #include "zCCTF.dctl"
 
 // UI Parameters
@@ -19,7 +17,7 @@ DEFINE_UI_PARAMS(chanTypeH, Highlight Mask, DCTLUI_COMBO_BOX, 0, {GREY_h, RED_h,
 DEFINE_UI_PARAMS(chanTypeS, Shadow Mask, DCTLUI_COMBO_BOX, 0, {GREY_s, RED_s, GREEN_s, BLUE_s}, {Luma, Red Channel, Green Channel, Blue Channel}) //Default is Luma
 DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_PARAMS(toggleMask, On: High | Off: Shad, DCTLUI_CHECK_BOX, 1)
-// Default is davinci intermediate but you can change to whatever you want
+// Default is davinci intermediate
 DEFINE_UI_PARAMS(p_TransferFunction, Transfer Function, DCTLUI_COMBO_BOX, 10, {aces_cc, aces_cct, appleLog, arriLogC3, arriLogC4, blackmagicFilmGen5, canonlog, canonlog2, canonlog3, cineon, davinciIntermediate, djiDlog, filmlightTlog, flog, flog2, goProProtune, leicaLog, lin, nikonNlog, panasonicVlog, redlog3g10, sonySlog, sonySlog2, sonySlog3}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen 5, Canon Log, Canon Log 2, Canon Log 3, Cineon Film Log, DaVinci Intermediate, DJI D-Log, Filmlight T-Log, FujiFilm F-Log, FujiFilm F-Log2, GoPro Protune, Leica L-Log, Linear, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
 
 //Transfer Functions
