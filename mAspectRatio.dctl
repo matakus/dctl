@@ -1,0 +1,64 @@
+// Define user interface parameters for controlling the matte's width and height
+DEFINE_UI_PARAMS(matte_width, Width, DCTLUI_SLIDER_FLOAT, 2.39, 0, 30, 0.1);
+DEFINE_UI_PARAMS(matte_height, Height, DCTLUI_SLIDER_FLOAT, 1, 0, 16, 0.1);
+
+// Checkbox parameters to toggle the use of alpha for matting and custom bit values for color adjustments
+DEFINE_UI_PARAMS(useAlpha, Generate Alpha, DCTLUI_CHECK_BOX, 0);
+DEFINE_UI_PARAMS(useBitValues, Use Bit Values, DCTLUI_CHECK_BOX, 0);
+
+// Parameters for custom color settings in Red, Green, and Blue channels
+DEFINE_UI_PARAMS(customR, Custom R, DCTLUI_VALUE_BOX, 0);
+DEFINE_UI_PARAMS(customG, Custom G, DCTLUI_VALUE_BOX, 0);
+DEFINE_UI_PARAMS(customB, Custom B, DCTLUI_VALUE_BOX, 0);
+
+// Main transformation function that adjusts the image based on the input parameters
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    // Calculate the aspect ratio of the input image
+    float timeline_aspect_ratio = (float)p_Width / (float)p_Height;
+    // Calculate the desired aspect ratio from the user settings
+    float matte_ratio_user = matte_width / matte_height;
+
+    // Determine the dimensions to maintain the aspect ratio
+    float desired_width, desired_height;
+    if (timeline_aspect_ratio > matte_ratio_user) {
+        // Adjust width to maintain the user-defined aspect ratio
+        desired_height = p_Height;
+        desired_width = desired_height * matte_ratio_user;
+    } else {
+        // Adjust height to maintain the user-defined aspect ratio
+        desired_width = p_Width;
+        desired_height = desired_width / matte_ratio_user;
+    }
+
+    // Calculate the width of the bars to add to the sides (pillarboxing)
+    float side_bar_width = (p_Width - desired_width) / 2.0;
+    // Calculate the height of the bars to add to the top and bottom (letterboxing)
+    float top_bar_width = (p_Height - desired_height) / 2.0;
+
+    // Initialize the output color
+    float3 out = make_float3(p_R, p_G, p_B);
+
+    // Check if the current pixel is within the pillar or letterbox bars
+    if (p_X < side_bar_width || p_X >= (p_Width - side_bar_width) || p_Y < top_bar_width || p_Y >= (p_Height - top_bar_width)) {
+        if (useAlpha == 1) {
+            // Make the pixel transparent if within the bars and alpha is used
+            out = make_float3(0, 0, 0);
+        } else if (useBitValues == 1) {
+            // Apply custom 8-bit color values if within the bars and bit values are used
+            float bitCustomColourR = customR * 255;
+            float bitCustomColourG = customG * 255;
+            float bitCustomColourB = customB * 255;
+            out = make_float3(bitCustomColourR, bitCustomColourG, bitCustomColourB);
+        } else {
+            // Apply custom color without conversion if within the bars and not using 8-bit values
+            out = make_float3(customR, customG, customB);
+        }
+    } else {
+        if (useAlpha == 1) {
+            // If the pixel is outside the bars, make it white when alpha is enabled
+            out = make_float3(1.0, 1.0, 1.0);
+        }
+    }
+    
+    return out;
+}
