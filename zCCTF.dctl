@@ -1,6 +1,7 @@
 #line 2
 
-//////// Transfer Functions and Colorspace Conversions
+//////// Transfer Functions and Colorspace Conversions 1.01 //m.c
+// This file contains transfer functions and colorspace convertions to be used in DCTL's
 
 ////Camera Transfer Functions
 
@@ -196,35 +197,32 @@ __DEVICE__ float3 linToLogCanonLog2(float3 in) {
 //Canon log 3
 
 __DEVICE__ float3 logToLinCanonLog3(float3 in) {
-    float a = 0.36726845f, b = 0.092864125f, c = 0.24136077f, d = 87.099375f;
-    float lin_cut_low = 0.092864125f, lin_cut_high = 0.15277891f;
-
+    float a = 0.36726845f, b = 0.12512219f, c = 14.98325f, d = 0.12240537f;
     return make_float3(
-        (in.x < lin_cut_low) ? -(_powf(10.0f, (b - in.x) / c) - 1.0f) / d :
-        (in.x <= lin_cut_high) ? (in.x - 0.12512219f) / 1.9754798f :
-                                 (_powf(10.0f, (in.x - 0.12240537f) / a) - 1.0f) / 14.98325f,
-        (in.y < lin_cut_low) ? -(_powf(10.0f, (b - in.y) / c) - 1.0f) / d :
-        (in.y <= lin_cut_high) ? (in.y - 0.12512219f) / 1.9754798f :
-                                 (_powf(10.0f, (in.y - 0.12240537f) / a) - 1.0f) / 14.98325f,
-        (in.z < lin_cut_low) ? -(_powf(10.0f, (b - in.z) / c) - 1.0f) / d :
-        (in.z <= lin_cut_high) ? (in.z - 0.12512219f) / 1.9754798f :
-                                 (_powf(10.0f, (in.z - 0.12240537f) / a) - 1.0f) / 14.98325f
+        in.x < 0.097465473f ? 
+            (in.x - 0.12512219f) / 0.36726845f / 1.9754798f : 
+            (_powf(10.0f, (in.x - d) / a) - 1.0f) / c,
+        in.y < 0.097465473f ? 
+            (in.y - 0.12512219f) / 0.36726845f / 1.9754798f : 
+            (_powf(10.0f, (in.y - d) / a) - 1.0f) / c,
+        in.z < 0.097465473f ? 
+            (in.z - 0.12512219f) / 0.36726845f / 1.9754798f : 
+            (_powf(10.0f, (in.z - d) / a) - 1.0f) / c
     );
 }
 
 __DEVICE__ float3 linToLogCanonLog3(float3 in) {
-    float a = 0.36726845f, b = 0.092864125f, c = 0.24136077f, d = 87.099375f;
-
+    float a = 0.36726845f, b = 0.12512219f, c = 14.98325f, d = 0.12240537f, e = 1.9754798f;
     return make_float3(
-        (in.x < -( _powf(10.0f, (b - 0.092864125f) / c) - 1.0f) / d) ? -(c * _log10f(-in.x * d + 1.0f) - b) :
-        (in.x <= 0.12512219f / 1.9754798f) ? in.x * 1.9754798f + 0.12512219f :
-                                             a * _log10f(in.x * 14.98325f + 1.0f) + 0.12240537f,
-        (in.y < -( _powf(10.0f, (b - 0.092864125f) / c) - 1.0f) / d) ? -(c * _log10f(-in.y * d + 1.0f) - b) :
-        (in.y <= 0.12512219f / 1.9754798f) ? in.y * 1.9754798f + 0.12512219f :
-                                             a * _log10f(in.y * 14.98325f + 1.0f) + 0.12240537f,
-        (in.z < -( _powf(10.0f, (b - 0.092864125f) / c) - 1.0f) / d) ? -(c * _log10f(-in.z * d + 1.0f) - b) :
-        (in.z <= 0.12512219f / 1.9754798f) ? in.z * 1.9754798f + 0.12512219f :
-                                             a * _log10f(in.z * 14.98325f + 1.0f) + 0.12240537f
+        in.x < -0.0126f ? 
+            0.12512219f + in.x * 0.36726845f * 1.9754798f : 
+            a * _log10f(in.x * c + 1.0f) + d,
+        in.y < -0.0126f ? 
+            0.12512219f + in.y * 0.36726845f * 1.9754798f : 
+            a * _log10f(in.y * c + 1.0f) + d,
+        in.z < -0.0126f ? 
+            0.12512219f + in.z * 0.36726845f * 1.9754798f : 
+            a * _log10f(in.z * c + 1.0f) + d
     );
 }
 
@@ -862,7 +860,7 @@ __DEVICE__ float3 XYZtoSGamut3Cine(float3 in) {
         0.0408554212f, 0.0156408893f, 0.8682072487f);
 }
 
-// Venice S-Gamut3
+//  S-Gamut3 Venice
 __DEVICE__ float3 SGamut3VenicetoXYZ(float3 in) {
     return applyMatrix(in,
         0.7442229873f, 0.0779065218f, 0.1283264179f,
@@ -877,7 +875,7 @@ __DEVICE__ float3 XYZtoSGamut3Venice(float3 in) {
         0.0320531907f, -0.0204380261f, 0.9090178003f);
 }
 
-// Venice S-Gamut3.Cine
+//  S-Gamut3 Venice.Cine
 __DEVICE__ float3 SGamut3VeniceCinetoXYZ(float3 in) {
     return applyMatrix(in,
         0.6322608372f, 0.2003700082f, 0.1178250816f,
