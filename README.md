@@ -1,3 +1,3 @@
 # dctls
 
-A collection of DCTL's that are kind of useful, kind of not. WIP
+A collection of DCTL's that are sort of useful, sort of not. WIP
