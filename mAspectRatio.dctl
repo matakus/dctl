@@ -1,3 +1,8 @@
+#line 2
+
+// Aspect Ratio DCTL // // 1.04 // Matt.C
+// Set a desired aspect ratio based on the input image.
+
 // Define user interface parameters for controlling the matte's width and height
 DEFINE_UI_PARAMS(matte_width, Width, DCTLUI_SLIDER_FLOAT, 2.39, 0, 30, 0.1);
 DEFINE_UI_PARAMS(matte_height, Height, DCTLUI_SLIDER_FLOAT, 1, 0, 16, 0.1);
