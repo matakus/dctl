@@ -1,7 +1,7 @@
 #line 2 // Debugging line
 
 // Color Adjustment DCTL // // 1.04 // Matt.C
-// Per Hue Saturation and Density Adjustment - Confined to Specific Hue Areas with Smooth Falloff
+// Per Hue Saturation and Density Adjustment - Confined to Specific Hue Areas with Falloff
 
 // UI parameter definitions with falloff width range updated from 5 to 105 degrees
 DEFINE_UI_PARAMS(saturationRed, Red Saturation 💔, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)          // Red saturation adjustment control

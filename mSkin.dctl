@@ -1,7 +1,7 @@
 #line 2 // This line makes line numbers appear correctly in the log file
 
-// Tool to help see if a selected hue for skintone is correct
-//1.03 //m.c
+// Skin DCTL // // 1.04 // Matt.C
+// Highlights desired Skintone.
 
 // UI parameter definitions
 DEFINE_UI_PARAMS(p_TargetHue, Target Skintone, DCTLUI_SLIDER_FLOAT, 0.15, -0.5, 0.5, 0.001) // Hue to be turned green

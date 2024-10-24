@@ -1,7 +1,7 @@
 #include "zCCTF.dctl"
 
-// Tool that shows false color according to ARRI's IRE ranges. Currently expects a LogC3 or 709 input
-//1.03 //m.c
+// False Colour DCTL // // 1.00// Matt.C
+// Arri Alexa's False Colour. 
 
 DEFINE_UI_PARAMS(signalType, Signal Input, DCTLUI_COMBO_BOX, 0, {rec709, logC3}, {Rec709, Log})
 

@@ -1,8 +1,8 @@
 #line 2 //Debugging line
 #include "zCCTF.dctl"
 
-// Tool to help see what the lighitng ratios of the footage are. Works in bands of stops. 
-//1.03 //m.c
+// Meters DCTL // // 1.04 // Matt.C
+// Tool to map exposure into 1 stop bands. 
 
 DEFINE_UI_PARAMS(p_midGrey, Mid Grey Stops + / -, DCTLUI_SLIDER_FLOAT, 0, -10, 10, 0.01) // Midtone Stop Adjust
 DEFINE_UI_PARAMS(p_TransferFunctionIn, Transfer Function In, DCTLUI_COMBO_BOX, 3, {acesCCIn, acesCCTIn, appleLogIn, arriLogC3In, arriLogC4In, blackmagicFilmGen5In, canonLogIn, canonLog2In, canonLog3In, cineonIn, davinciIntermediateIn, djiDLogIn, filmLightTLogIn, fLogIn, fLog2In, goproProtuneIn, leicaLogIn, nLogIn, vLogIn, redLog3G10In, sonySLogIn, sonySLog2In, sonySLog3In}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})

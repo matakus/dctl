@@ -1,5 +1,7 @@
-//////// Transfer Functions and Colorspace Conversions 1.01 //m.c
-// This file contains transfer functions and colorspace convertions to be used in DCTL's
+#line 2
+
+// CCTF DCTL // // 1.04 // Matt.C
+// Stores transfer functions and colorspace conversions. 
 
 ////Camera Transfer Functions
 

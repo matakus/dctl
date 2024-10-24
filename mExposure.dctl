@@ -1,7 +1,7 @@
 #line 2 // Debugging line
 
-// Exposure DCTL - Adjusts the exposure of an image in stops, with the ability to mask it to the highlights and shadows.
-// 1.03 // m.c
+// Exposure DCTL // // 1.04 // Matt.C
+// Adjsuts the Exposure of an image with masks.
 
 #include "zCCTF.dctl"
 

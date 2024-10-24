@@ -1,7 +1,11 @@
 #line 2
 
-// Include Davinci Transformations from zCCTF.dctl
+// Temp DCTL // // 1.04 // Matt.C
+// Adjsuts the colour temperature based on Black body Radiatior.
+
 #include "zCCTF.dctl"
+
+
 
 // UI parameter definitions
 DEFINE_UI_PARAMS(p_InputTemperature, Source Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0)  // Temperature slider from 2000K to 20000K
