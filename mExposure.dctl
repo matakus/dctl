@@ -1,30 +1,32 @@
-#line 2 //Debugging line
+#line 2 // Debugging line
 
-// Exposure DCTL - Adjusts the exposure of an image in stops, with the ability to mask it to the highlights and shadows and adjust the saturation in the affected area.
-//1.03 //m.c
+// Exposure DCTL - Adjusts the exposure of an image in stops, with the ability to mask it to the highlights and shadows.
+// 1.03 // m.c
 
 #include "zCCTF.dctl"
 
 // UI Parameters
-DEFINE_UI_PARAMS(p_Exp, Exposure, DCTLUI_SLIDER_FLOAT, 0, -7, 7, 0.001) //Default is 7 Stops
-DEFINE_UI_PARAMS(p_ExpHigh, Highlight + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1) //Default is 5 Stops
-DEFINE_UI_PARAMS(p_ExpShad, Shadow + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1) //Default is 5 Stops
-DEFINE_UI_PARAMS(maskStrenHigh, High Mask Strength, DCTLUI_SLIDER_FLOAT, 0.333, 0, 1, 0.01) //Default is 0.333
-DEFINE_UI_PARAMS(maskStrenShad, Shad Mask Strength, DCTLUI_SLIDER_FLOAT, 0.333, 0, 1, 0.01) //Default is 0.333
-DEFINE_UI_PARAMS(HighlightSaturation, Highlight Saturation, DCTLUI_SLIDER_FLOAT, 0, -1, 1, 0.01) 
-DEFINE_UI_PARAMS(ShadowSaturation, Shadow Saturation, DCTLUI_SLIDER_FLOAT, 0, -1, 1, 0.01)
-DEFINE_UI_PARAMS(chanTypeH, Highlight Mask, DCTLUI_COMBO_BOX, 0, {GREY_h, RED_h, GREEN_h, BLUE_h}, {Luma, Red Channel, Green Channel, Blue Channel}) //Default is Luma
-DEFINE_UI_PARAMS(chanTypeS, Shadow Mask, DCTLUI_COMBO_BOX, 0, {GREY_s, RED_s, GREEN_s, BLUE_s}, {Luma, Red Channel, Green Channel, Blue Channel}) //Default is Luma
+DEFINE_UI_PARAMS(p_Exp, Exposure, DCTLUI_SLIDER_FLOAT, 0, -7, 7, 0.001)               // Default is 7 Stops
+DEFINE_UI_PARAMS(p_ExpHigh, Highlight + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1)     // Default is 5 Stops
+DEFINE_UI_PARAMS(p_ExpShad, Shadow + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1)        // Default is 5 Stops
+DEFINE_UI_PARAMS(maskStrenHigh, High Mask Strength, DCTLUI_SLIDER_FLOAT, 0.333, 0, 1, 0.01) // Default is 0.333
+DEFINE_UI_PARAMS(maskStrenShad, Shad Mask Strength, DCTLUI_SLIDER_FLOAT, 0.333, 0, 1, 0.01) // Default is 0.333
+DEFINE_UI_PARAMS(HighlightSaturation, Highlight Saturation, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01) // Highlight Saturation slider
+DEFINE_UI_PARAMS(ShadowSaturation, Shadow Saturation, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01) // Shadow Saturation slider
+DEFINE_UI_PARAMS(chanTypeH, Highlight Mask, DCTLUI_COMBO_BOX, 0, {GREY_h, RED_h, GREEN_h, BLUE_h}, {Luma, Red Channel, Green Channel, Blue Channel}) // Default is Luma
+DEFINE_UI_PARAMS(chanTypeS, Shadow Mask, DCTLUI_COMBO_BOX, 0, {GREY_s, RED_s, GREEN_s, BLUE_s}, {Luma, Red Channel, Green Channel, Blue Channel}) // Default is Luma
 DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_PARAMS(toggleMask, On: High | Off: Shad, DCTLUI_CHECK_BOX, 1)
-// Default is davinci intermediate
+// Default is DaVinci Intermediate
 DEFINE_UI_PARAMS(p_TransferFunction, Transfer Function, DCTLUI_COMBO_BOX, 10, {aces_cc, aces_cct, appleLog, arriLogC3, arriLogC4, blackmagicFilmGen5, canonlog, canonlog2, canonlog3, cineon, davinciIntermediate, djiDlog, filmlightTlog, flog, flog2, goProProtune, leicaLog, lin, nikonNlog, panasonicVlog, redlog3g10, sonySlog, sonySlog2, sonySlog3}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen 5, Canon Log, Canon Log 2, Canon Log 3, Cineon Film Log, DaVinci Intermediate, DJI D-Log, Filmlight T-Log, FujiFilm F-Log, FujiFilm F-Log2, GoPro Protune, Leica L-Log, Linear, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
 
-//Transfer Functions
-//Converts input from log to linear and linear to log
-
-
 // Helper Functions
+
+// Ensure powf behaves consistently across different operating systems
+__DEVICE__ float powf(float base, float exp) {
+    return _copysignf(_powf(_fabs(base), exp), base);
+}
+
 __DEVICE__ float3 exposureFunc(float3 in, float stops) {
     return in * _powf(2.0f, stops);
 }
@@ -41,78 +43,77 @@ __DEVICE__ float maskFunc(float r, float g, float b, int chanType, float stren, 
     return _saturatef(mask);
 }
 
-__DEVICE__ float3 adjustSaturation(float3 rgb, float sat) {
-    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
-    float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
-    float currentSat = ach == 0.0f ? 0.0f : (ach - minColor) / ach;
-    float adjSatEffect = sat > 0 ? 1.0f + (1.0f - currentSat) * sat : 1.0f + currentSat * sat;
-    float3 dist = ach == 0.0f ? 0.0f : (ach - rgb) / _fabs(ach);
-    dist *= adjSatEffect;
-    float3 result = ach - dist * _fabs(ach);
-    
-    // Clamp the result to ensure no negative values
-    result.x = _fmaxf(result.x, 0.0f);
-    result.y = _fmaxf(result.y, 0.0f);
-    result.z = _fmaxf(result.z, 0.0f);
-    
-    return result;
-}
-
-
 __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
-    if (transferFunc == aces_cc) return logToLinACEScc(in);
-    if (transferFunc == aces_cct) return logToLinACEScct(in);
-    if (transferFunc == appleLog) return logToLinAppleLogProfile(in);
-    if (transferFunc == arriLogC3) return logToLinArriLogC3(in);
-    if (transferFunc == arriLogC4) return logToLinArriLogC4(in);
-    if (transferFunc == blackmagicFilmGen5) return logToLinBlackmagicFilmGen5(in);
-    if (transferFunc == canonlog) return logToLinCanonLog(in);
-    if (transferFunc == canonlog2) return logToLinCanonLog2(in);
-    if (transferFunc == canonlog3) return logToLinCanonLog3(in);
-    if (transferFunc == cineon) return logToLinCineon(in);
-    if (transferFunc == davinciIntermediate) return logToLinDavinciIntermediate(in);
-    if (transferFunc == djiDlog) return logToLinDJIDLog(in);
-    if (transferFunc == filmlightTlog) return logToLinFilmLightTLog(in);
-    if (transferFunc == flog) return logToLinFLog(in);
-    if (transferFunc == flog2) return logToLinFLog2(in);
-    if (transferFunc == goProProtune) return logToLinProtune(in);
-    if (transferFunc == leicaLog) return logToLinLeicaLog(in);
-    if (transferFunc == lin) return in;
-    if (transferFunc == nikonNlog) return logToLinNLog(in);
-    if (transferFunc == panasonicVlog) return logToLinVLog(in);
-    if (transferFunc == redlog3g10) return logToLinRedLog3g10(in);
-    if (transferFunc == sonySlog) return logToLinSonySLog(in);
-    if (transferFunc == sonySlog2) return logToLinSonySLog2(in);
-    if (transferFunc == sonySlog3) return logToLinSonySLog3(in);
-    return in; // Default case, return input as-is
+    switch (transferFunc) {
+        case aces_cc:             return logToLinACEScc(in);
+        case aces_cct:            return logToLinACEScct(in);
+        case appleLog:            return logToLinAppleLogProfile(in);
+        case arriLogC3:           return logToLinArriLogC3(in);
+        case arriLogC4:           return logToLinArriLogC4(in);
+        case blackmagicFilmGen5:  return logToLinBlackmagicFilmGen5(in);
+        case canonlog:            return logToLinCanonLog(in);
+        case canonlog2:           return logToLinCanonLog2(in);
+        case canonlog3:           return logToLinCanonLog3(in);
+        case cineon:              return logToLinCineon(in);
+        case davinciIntermediate: return logToLinDavinciIntermediate(in);
+        case djiDlog:             return logToLinDJIDLog(in);
+        case filmlightTlog:       return logToLinFilmLightTLog(in);
+        case flog:                return logToLinFLog(in);
+        case flog2:               return logToLinFLog2(in);
+        case goProProtune:        return logToLinProtune(in);
+        case leicaLog:            return logToLinLeicaLog(in);
+        case lin:                 return in; // Linear input, no conversion
+        case nikonNlog:           return logToLinNLog(in);
+        case panasonicVlog:       return logToLinVLog(in);
+        case redlog3g10:          return logToLinRedLog3g10(in);
+        case sonySlog:            return logToLinSonySLog(in);
+        case sonySlog2:           return logToLinSonySLog2(in);
+        case sonySlog3:           return logToLinSonySLog3(in);
+    }
 }
 
 __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
-    if (transferFunc == aces_cc) return linToLogACEScc(in);
-    if (transferFunc == aces_cct) return linToLogACEScct(in);
-    if (transferFunc == appleLog) return linToLogAppleLogProfile(in);
-    if (transferFunc == arriLogC3) return linToLogArriLogC3(in);
-    if (transferFunc == arriLogC4) return linToLogArriLogC4(in);
-    if (transferFunc == blackmagicFilmGen5) return linToLogBlackmagicFilmGen5(in);
-    if (transferFunc == canonlog) return linToLogCanonLog(in);
-    if (transferFunc == canonlog2) return linToLogCanonLog2(in);
-    if (transferFunc == canonlog3) return linToLogCanonLog3(in);
-    if (transferFunc == cineon) return linToLogCineon(in);
-    if (transferFunc == davinciIntermediate) return linToLogDavinciIntermediate(in);
-    if (transferFunc == djiDlog) return linToLogDJIDLog(in);
-    if (transferFunc == filmlightTlog) return linToLogFilmLightTLog(in);
-    if (transferFunc == flog) return linToLogFLog(in);
-    if (transferFunc == flog2) return linToLogFLog2(in);
-    if (transferFunc == goProProtune) return linToLogProtune(in);
-    if (transferFunc == leicaLog) return linToLogLeicaLog(in);
-    if (transferFunc == lin) return in;
-    if (transferFunc == nikonNlog) return linToLogNLog(in);
-    if (transferFunc == panasonicVlog) return linToLogVLog(in);
-    if (transferFunc == redlog3g10) return linToLogRedLog3g10(in);
-    if (transferFunc == sonySlog) return linToLogSonySLog(in);
-    if (transferFunc == sonySlog2) return linToLogSonySLog2(in);
-    if (transferFunc == sonySlog3) return linToLogSonySLog3(in);
-    return in; // Default case, return input as-is
+    switch (transferFunc) {
+        case aces_cc:             return linToLogACEScc(in);
+        case aces_cct:            return linToLogACEScct(in);
+        case appleLog:            return linToLogAppleLogProfile(in);
+        case arriLogC3:           return linToLogArriLogC3(in);
+        case arriLogC4:           return linToLogArriLogC4(in);
+        case blackmagicFilmGen5:  return linToLogBlackmagicFilmGen5(in);
+        case canonlog:            return linToLogCanonLog(in);
+        case canonlog2:           return linToLogCanonLog2(in);
+        case canonlog3:           return linToLogCanonLog3(in);
+        case cineon:              return linToLogCineon(in);
+        case davinciIntermediate: return linToLogDavinciIntermediate(in);
+        case djiDlog:             return linToLogDJIDLog(in);
+        case filmlightTlog:       return linToLogFilmLightTLog(in);
+        case flog:                return linToLogFLog(in);
+        case flog2:               return linToLogFLog2(in);
+        case goProProtune:        return linToLogProtune(in);
+        case leicaLog:            return linToLogLeicaLog(in);
+        case lin:                 return in; // Linear input, no conversion
+        case nikonNlog:           return linToLogNLog(in);
+        case panasonicVlog:       return linToLogVLog(in);
+        case redlog3g10:          return linToLogRedLog3g10(in);
+        case sonySlog:            return linToLogSonySLog(in);
+        case sonySlog2:           return linToLogSonySLog2(in);
+        case sonySlog3:           return linToLogSonySLog3(in);
+    }
+}
+
+// Adjust saturation function
+__DEVICE__ float3 adjustSaturation(float3 rgb, float sat) {
+    sat -= 1.0f; // Offset saturation slider for adjustment
+
+    // Get the maximum channel value (achromatic color)
+    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));                                  
+    float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
+    distance *= (1.0f + sat);
+
+    // Compute new RGB values based on saturation adjustment
+    float3 newRGB = ach - distance * _fabs(ach);
+
+    return newRGB;
 }
 
 // Transform image
@@ -128,18 +129,29 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 
     // Adjust highlight exposure
     float3 expHigh = exposureFunc(globalExp, p_ExpHigh);
-    float3 satHigh = adjustSaturation(expHigh, HighlightSaturation);
-    float3 logHigh = convertToLog(satHigh, p_TransferFunction);
+    
+    // Convert to log space after adjusting highlight exposure
+    float3 logHigh = convertToLog(expHigh, p_TransferFunction);
+
+    // Apply saturation adjustment using the Highlight Saturation slider
+    float3 satHigh = adjustSaturation(logHigh, HighlightSaturation);  // Use the slider value
+    
+    // Apply highlight mask
     float maskH = maskFunc(in.x, in.y, in.z, chanTypeH, maskStrenHigh, false);
-    float3 maskedHigh = logHigh * maskH + logGlobalExp * (1.0f - maskH);
+    float3 maskedHigh = satHigh * maskH + logGlobalExp * (1.0f - maskH);
 
     // Adjust shadow exposure
     float3 expShad = exposureFunc(globalExp, p_ExpShad);
-    float3 satShad = adjustSaturation(expShad, ShadowSaturation);
-    float3 logShad = convertToLog(satShad, p_TransferFunction);
-    float maskS = maskFunc(in.x, in.y, in.z, chanTypeS, maskStrenShad, true);
-    float3 maskedShad = logShad * maskS + maskedHigh * (1.0f - maskS);
+    float3 logShad = convertToLog(expShad, p_TransferFunction);
 
+    // Apply saturation adjustment using the Shadow Saturation slider
+    float3 satShad = adjustSaturation(logShad, ShadowSaturation);  // Use the slider value
+    
+    // Apply shadow mask
+    float maskS = maskFunc(in.x, in.y, in.z, chanTypeS, maskStrenShad, true);
+    float3 maskedShad = satShad * maskS + maskedHigh * (1.0f - maskS);
+
+    // Optionally show the mask if enabled
     if (showMask) {
         return toggleMask ? make_float3(maskH, maskH, maskH) : make_float3(maskS, maskS, maskS);
     }
@@ -147,3 +159,4 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     // Return the final result
     return maskedShad;
 }
+

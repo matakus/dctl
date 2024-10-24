@@ -1,5 +1,3 @@
-#line 2
-
 //////// Transfer Functions and Colorspace Conversions 1.01 //m.c
 // This file contains transfer functions and colorspace convertions to be used in DCTL's
 
@@ -197,7 +195,9 @@ __DEVICE__ float3 linToLogCanonLog2(float3 in) {
 //Canon log 3
 
 __DEVICE__ float3 logToLinCanonLog3(float3 in) {
-    float a = 0.36726845f, b = 0.12512219f, c = 14.98325f, d = 0.12240537f;
+    float a = 0.36726845f, c = 14.98325f, d = 0.12240537f;
+    //float b = 0.12512219f;
+
     return make_float3(
         in.x < 0.097465473f ? 
             (in.x - 0.12512219f) / 0.36726845f / 1.9754798f : 
@@ -212,7 +212,8 @@ __DEVICE__ float3 logToLinCanonLog3(float3 in) {
 }
 
 __DEVICE__ float3 linToLogCanonLog3(float3 in) {
-    float a = 0.36726845f, b = 0.12512219f, c = 14.98325f, d = 0.12240537f, e = 1.9754798f;
+    float a = 0.36726845f, c = 14.98325f, d = 0.12240537f, e = 1.9754798f;
+    //float b = 0.12512219f;
     return make_float3(
         in.x < -0.0126f ? 
             0.12512219f + in.x * 0.36726845f * 1.9754798f : 
@@ -279,7 +280,10 @@ __DEVICE__ float3 linToLogDJIDLog(float3 in) {
 // T-Log
 
 
-__DEVICE__ float3 linToLogFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
+__DEVICE__ float3 linToLogFilmLightTLog(float3 in) {
+    float w = 128.0f;
+    float g = 16.0f;
+    float o = 0.075f;
     float b = 1 / (0.7107f + 1.2359f * _logf(w * g));
     float gs = g / (1 - o);
     float C = b / gs;
@@ -297,7 +301,10 @@ __DEVICE__ float3 linToLogFilmLightTLog(float3 in, float w = 128.0f, float g = 1
     );
 }
 
-__DEVICE__ float3 logToLinFilmLightTLog(float3 in, float w = 128.0f, float g = 16.0f, float o = 0.075f) {
+__DEVICE__ float3 logToLinFilmLightTLog(float3 in) {
+    float w = 128.0f; 
+    float g = 16.0f; 
+    float o = 0.075f;
     float b = 1 / (0.7107f + 1.2359f * _logf(w * g));
     float gs = g / (1 - o);
     float C = b / gs;
@@ -768,6 +775,37 @@ __DEVICE__ float3 XYZtoDaVinciWideGamut(float3 in) {
         1.51667204f, -0.28147805f, -0.14696363f,
         -0.46491710f, 1.25142378f, 0.17488461f,
         0.06484905f, 0.10913934f, 0.76141462f);
+}
+
+//DJI
+
+__DEVICE__ float3 DJIDGamuttoXYZ(float3 in) {
+    return applyMatrix(in,
+        0.6482f, 0.1940f, 0.1082f,
+        0.2830f, 0.8132f, -0.0962f,
+        -0.0183f, -0.0832f, 1.1903f);
+}
+
+__DEVICE__ float3 XYZtoDJIDGamut(float3 in) {
+    return applyMatrix(in,
+        1.7257f, -0.4314f, -0.1917f,
+        -0.6025f, 1.3906f, 0.1671f,
+        -0.0156f, 0.0905f, 0.8489f);
+}
+
+// GoPro
+__DEVICE__ float3 GoProProtuneToXYZ(float3 in) {
+    return applyMatrix(in,
+        0.702167f, 0.183534f, 0.115423f,
+        0.293216f, 0.682746f, 0.039282f,
+        0.0f, 0.045138f, 0.987434f);
+}
+
+__DEVICE__ float3 XYZtoGoProProtune(float3 in) {
+    return applyMatrix(in,
+        1.598952f, -0.418570f, -0.170253f,
+        -0.688506f, 1.648772f, 0.014889f,
+        0.031473f, -0.075369f, 1.012045f);
 }
 
 // FilmLight E-Gamut

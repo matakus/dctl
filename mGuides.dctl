@@ -1,0 +1,359 @@
+#line 2 // Debugging line
+
+// Guides DCTL // // 1.04 // Matt.C
+// Renders elements based on known ratios on screen with the ability to adjust opacity, color and visablity
+
+// UI Parameters for Opacity
+DEFINE_UI_PARAMS(ruleOfThirdsOpacity, Rule of Thirds Opacity, DCTLUI_SLIDER_FLOAT, 0.4, 0, 1, 0.1);
+DEFINE_UI_PARAMS(ruleOfThirdsCenterOpacity, Center Opacity, DCTLUI_SLIDER_FLOAT, 0.1, 0, 1, 0.1);
+DEFINE_UI_PARAMS(crosshairOpacity, Crosshair Opacity, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1, 0.1);
+DEFINE_UI_PARAMS(goldenRatioOpacity, Golden Ratio Opacity, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1, 0.1);
+DEFINE_UI_PARAMS(goldenSpiralOpacity, Golden Spiral Opacity, DCTLUI_SLIDER_FLOAT, 1.0, 0, 1, 0.1);
+
+
+// UI Parameters for Color
+DEFINE_UI_PARAMS(colorRuleOfThirds, Rule of Thirds 🌈 , DCTLUI_SLIDER_INT, 5, 0, 9, 1);
+DEFINE_UI_PARAMS(colorRuleOfThirdsCenter, Center 🌈 , DCTLUI_SLIDER_INT, 5, 0, 9, 1);
+DEFINE_UI_PARAMS(colorCrosshair, Crosshair 🌈 , DCTLUI_SLIDER_INT, 9, 0, 9, 1);
+DEFINE_UI_PARAMS(colorGoldenRatio, Golden Ratio 🌈 , DCTLUI_SLIDER_INT, 0, 0, 9, 1);
+DEFINE_UI_PARAMS(colorGoldenSpiral, Golden Spiral 🌈 , DCTLUI_SLIDER_INT, 2, 0, 9, 1);
+
+// UI Parameters for Line Width
+DEFINE_UI_PARAMS(lineWidth, Line Width, DCTLUI_SLIDER_INT, 3, 1, 16, 1);
+
+// UI Parameters for Checkboxes to Enable/Disable Elements
+
+DEFINE_UI_PARAMS(enableRuleOfThirds, Enable Rule of Thirds, DCTLUI_CHECK_BOX, 1);
+DEFINE_UI_PARAMS(enableRuleOfThirdsCenter, Enable Rule of Thirds Center, DCTLUI_CHECK_BOX, 1);
+DEFINE_UI_PARAMS(enableCrosshair, Enable Crosshair, DCTLUI_CHECK_BOX, 0);
+DEFINE_UI_PARAMS(enableGoldenRatio, Enable Golden Ratio, DCTLUI_CHECK_BOX, 0);
+DEFINE_UI_PARAMS(enableGoldenSpiral, Enable Golden Spiral, DCTLUI_CHECK_BOX, 0);
+DEFINE_UI_PARAMS(flipGoldenSpiralV, Flip Vertically, DCTLUI_CHECK_BOX, 0);
+DEFINE_UI_PARAMS(flipGoldenSpiralH, Flip Horiontally, DCTLUI_CHECK_BOX, 0);
+
+
+
+// Sets the colors of the lines
+__DEVICE__ float3 getColorFromSelection(int colorSelection) {
+    // Define the colors for each number (0-9) in hue order
+    switch(colorSelection) {
+        case 0: return make_float3(1.0, 0.0, 0.0); // Red
+        case 1: return make_float3(1.0, 0.5, 0.0); // Orange
+        case 2: return make_float3(1.0, 1.0, 0.0); // Yellow
+        case 3: return make_float3(0.0, 1.0, 0.0); // Green
+        case 4: return make_float3(0.0, 1.0, 1.0); // Cyan
+        case 5: return make_float3(0.0, 0.0, 1.0); // Blue
+        case 6: return make_float3(0.5, 0.0, 1.0); // Purple
+        case 7: return make_float3(1.0, 0.0, 1.0); // Magenta
+        case 8: return make_float3(0.5, 0.5, 0.5); // Grey
+        case 9: return make_float3(1.0, 1.0, 1.0); // White
+        default: return make_float3(1.0, 1.0, 1.0); // Default to white
+    }
+}
+
+
+// Function to draw golden spiral with vertical and horizontal flip options
+__DEVICE__ float3 drawGoldenSpiral(int p_Width,int p_Height,int p_X,int p_Y,float3 inRGB,int lineWidth,int colorSelection,int flipGoldenSpiralV, int flipGoldenSpiralH) {
+    // Golden ratio constant
+    float golden_ratio = 0.61803398875f; // Approximately (1 + sqrt(5)) / 2
+
+    // Calculate the horizontal offset based on image height
+    float offset_x = p_Height * 0.190924f; // 19.0924% of the image height
+
+    // Determine horizontal shift based on flip
+    // Shift left by offset_x if flipped horizontally, else shift right
+    float horizontal_shift = flipGoldenSpiralH ? -offset_x : offset_x;
+
+    // Adjusted circle parameters
+    float center_x1 = p_Width / 2.0f + horizontal_shift; // Shift left or right based on horizontal flip
+    float center_y1 = flipGoldenSpiralV ? 0.0f : p_Height; // Start from top if flipped vertically, else bottom
+    float radius1 = p_Height; // Scale to fit the height
+
+    // Pre-calculate the circle centers and radii
+    float centers_x[10];
+    float centers_y[10];
+    float radii[10];
+
+    centers_x[0] = center_x1;
+    centers_y[0] = center_y1;
+    radii[0] = radius1;
+
+    // Direction modifiers for center positions (clockwise spiral)
+    float direction_x[9] = {0, 1, 0, -1, 0, 1, 0, -1, 0};
+    float direction_y[9] = {-1, 0, 1, 0, -1, 0, 1, 0, -1};
+
+    // Create modified direction arrays based on flip factors
+    float direction_x_modified[9];
+    float direction_y_modified[9];
+    for (int i = 0; i < 9; ++i) {
+        direction_x_modified[i] = direction_x[i] * (flipGoldenSpiralH ? -1.0f : 1.0f); // Apply horizontal flip
+        direction_y_modified[i] = direction_y[i] * (flipGoldenSpiralV ? -1.0f : 1.0f); // Apply vertical flip
+    }
+
+    // Calculate centers and radii for all circles
+    for (int i = 1; i < 10; ++i) {
+        radii[i] = radii[i - 1] * golden_ratio;
+        centers_x[i] = centers_x[i - 1] + direction_x_modified[i - 1] * radii[i - 1] * (1.0f - golden_ratio);
+        centers_y[i] = centers_y[i - 1] + direction_y_modified[i - 1] * radii[i - 1] * (1.0f - golden_ratio);
+    }
+
+    // Set the thickness of the spiral lines (in pixels)
+    float circle_thickness = (float)lineWidth; // Adjust as needed
+
+    // Define the spiral color
+    float3 spiral_color = getColorFromSelection(colorSelection); // Selected color
+
+    // Set the input RGB values (default image color)
+    float3 out = inRGB;
+
+    // Quadrant conditions for each circle
+    bool x_less[10] = {true, false, false, true, true, false, false, true, true, false};
+    bool y_less[10] = {true, true, false, false, true, true, false, false, true, true};
+
+    // Adjust quadrant conditions based on flips
+    bool x_less_modified[10];
+    bool y_less_modified[10];
+    for (int i = 0; i < 10; ++i) {
+        x_less_modified[i] = flipGoldenSpiralH ? !x_less[i] : x_less[i];
+        y_less_modified[i] = flipGoldenSpiralV ? !y_less[i] : y_less[i];
+    }
+
+    // Calculate the distance from the current pixel to the center of each circle
+    for (int i = 0; i < 10; ++i) {
+        float dx = (float)p_X - centers_x[i];
+        float dy = (float)p_Y - centers_y[i];
+        float dist = _sqrtf(dx * dx + dy * dy);
+
+        // Check if the pixel falls on the inner side of the current circle's border
+        if (dist >= radii[i] - circle_thickness && dist <= radii[i]) {
+            bool x_condition = x_less_modified[i] ? (p_X <= centers_x[i]) : (p_X >= centers_x[i]);
+            bool y_condition = y_less_modified[i] ? (p_Y <= centers_y[i]) : (p_Y >= centers_y[i]);
+            if (x_condition && y_condition) {
+                out = spiral_color;
+            }
+        }
+    }
+
+    // Output the final result
+    return out;
+}
+
+
+// Function to draw golden ratio lines
+__DEVICE__ float3 drawGoldenRatio(int p_Width, int p_Height, int p_X, int p_Y, float3 inRGB, int lineWidth, int colorSelection) {
+
+    // Golden ratio constant
+    float phi = (1.0f + _sqrtf(5.0f)) / 2.0f;
+    
+    // Calculate the positions of the vertical lines based on the golden ratio
+    int line1_x = (int)(p_Width / phi);               // First vertical line at ~61.8% from the left
+    int line2_x = p_Width - line1_x;                  // Second vertical line at ~38.2% from the left
+    
+    // Calculate the positions of the horizontal lines based on the golden ratio
+    int line1_y = (int)(p_Height / phi);              // First horizontal line at ~61.8% from the top
+    int line2_y = p_Height - line1_y;                 // Second horizontal line at ~38.2% from the top
+    
+    // Set the thickness of the lines (lineWidth pixels)
+    int line_thickness = lineWidth;
+
+    // Set the input RGB values
+    float3 out = inRGB;
+
+    // Draw vertical lines:
+    // Left line inside
+    if ((p_X >= line1_x && p_X <= line1_x + line_thickness)) {
+        out = getColorFromSelection(colorSelection);  // Color for the vertical dividing lines
+    }
+    // Right line inside
+    if ((p_X <= line2_x && p_X >= line2_x - line_thickness)) {
+        out = getColorFromSelection(colorSelection);  // Color for the vertical dividing lines
+    }
+
+    // Draw horizontal lines:
+    // Top line inside
+    if ((p_Y >= line1_y && p_Y <= line1_y + line_thickness)) {
+        out = getColorFromSelection(colorSelection);  // Color for the horizontal dividing lines
+    }
+    // Bottom line inside
+    if ((p_Y <= line2_y && p_Y >= line2_y - line_thickness)) {
+        out = getColorFromSelection(colorSelection);  // Color for the horizontal dividing lines
+    }
+
+    // Output the final result
+    return out;
+}
+
+
+// Function to draw the Rule of Thirds lines (with thickness on the outside)
+__DEVICE__ float3 drawRuleOfThirds(int p_Width, int p_Height, int p_X, int p_Y, float3 inRGB, int lineWidth, int colorSelection) {
+
+    // Calculate the positions of the vertical lines based on the Rule of Thirds
+    int line1_x = p_Width / 3;         // First vertical line at 1/3rd width
+    int line2_x = 2 * line1_x;         // Second vertical line at 2/3rd width
+
+    // Calculate the positions of the horizontal lines based on the Rule of Thirds
+    int line1_y = p_Height / 3;        // First horizontal line at 1/3rd height
+    int line2_y = 2 * line1_y;         // Second horizontal line at 2/3rd height
+
+    // Set the thickness of the lines (lineWidth pixels)
+    int line_thickness = lineWidth;
+
+    // Set the input RGB values
+    float3 out = inRGB;
+
+    // Draw vertical lines:
+    // Left line outside
+    if ((p_X >= line1_x - line_thickness && p_X <= line1_x)) {
+        out = getColorFromSelection(colorSelection);  // Color for the vertical dividing lines
+    }
+    // Right line outside
+    if ((p_X >= line2_x && p_X <= line2_x + line_thickness)) {
+        out = getColorFromSelection(colorSelection);  // Color for the vertical dividing lines
+    }
+
+    // Draw horizontal lines:
+    // Top line outside
+    if ((p_Y >= line1_y - line_thickness && p_Y <= line1_y)) {
+        out = getColorFromSelection(colorSelection);  // Color for the horizontal dividing lines
+    }
+    // Bottom line outside
+    if ((p_Y >= line2_y && p_Y <= line2_y + line_thickness)) {
+        out = getColorFromSelection(colorSelection);  // Color for the horizontal dividing lines
+    }
+
+    // Output the final result
+    return out;
+}
+
+
+
+// Function to shade the center square of the Rule of Thirds (with one-pixel smaller border)
+__DEVICE__ float3 drawRuleOfThirdsCenter(int p_Width, int p_Height, int p_X, int p_Y, float3 inRGB, int colorSelection) {
+
+    // Calculate the positions of the thirds for the image
+    int third_width = p_Width / 3;
+    int third_height = p_Height / 3;
+
+    // Define the center square coordinates, reduced by 1 pixel on the border
+    int center_x_min = third_width + 1;
+    int center_x_max = 2 * third_width - 1;
+    int center_y_min = third_height + 1;
+    int center_y_max = 2 * third_height - 1;
+
+    // Set the input RGB values
+    float3 out = inRGB;
+
+    // Check if the current pixel falls within the smaller center square
+    if (p_X >= center_x_min && p_X <= center_x_max && p_Y >= center_y_min && p_Y <= center_y_max) {
+        out = getColorFromSelection(colorSelection);  // Shade the center square with the selected color
+    }
+
+    // Output the final result
+    return out;
+}
+
+
+// Function to draw a Crosshair at the center of the image
+__DEVICE__ float3 drawCrosshair(int p_Width, int p_Height, int p_X, int p_Y, float3 inRGB, int lineWidth, int colorSelection) {
+    
+    // Define the crosshair color
+    float3 crosshair_color = getColorFromSelection(colorSelection);
+    
+    // Calculate the center of the image
+    float centerX = p_Width / 2.0f;
+    float centerY = p_Height / 2.0f;
+    
+    // Define the length of the crosshair lines (e.g., 10% of the image width and height)
+    float lineLengthX = p_Height * 0.05f;
+    float lineLengthY = p_Height * 0.05f;
+    
+    // Set the thickness of the crosshair lines
+    float thickness = (float)lineWidth/2;
+    
+    // Initialize the output color with the input RGB
+    float3 out = inRGB;
+    
+    // Calculate the distance from the current pixel to the center for horizontal line
+    if (fabs((float)p_Y - centerY) <= thickness / 2.0f &&
+        (float)p_X >= (centerX - lineLengthX) && (float)p_X <= (centerX + lineLengthX)) {
+        out = crosshair_color;
+    }
+    
+    // Calculate the distance from the current pixel to the center for vertical line
+    if (fabs((float)p_X - centerX) <= thickness / 2.0f &&
+        (float)p_Y >= (centerY - lineLengthY) && (float)p_Y <= (centerY + lineLengthY)) {
+        out = crosshair_color;
+    }
+    
+    // Output the final result
+    return out;
+}
+
+
+// Main function - renders guide elements
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+
+    // Set the input RGB values (default image color)
+    float3 inRGB = make_float3(p_R, p_G, p_B);
+    float3 out = inRGB;  // Initialize final output with the original input RGB
+
+    // Calculate the center region of the Rule of Thirds grid
+    int third_width = p_Width / 3;
+    int third_height = p_Height / 3;
+    bool isInCenter = (p_X >= third_width && p_X <= 2 * third_width) && (p_Y >= third_height && p_Y <= 2 * third_width);
+
+    // Initialize outputs for different guides
+    float3 thirdsOut = inRGB;
+    float3 centerOut = inRGB;
+    float3 ratioOut = inRGB;
+    float3 spiralOut = inRGB;
+
+    // Render Rule of Thirds
+    if (enableRuleOfThirds == 1) {
+        float3 tempThirds = drawRuleOfThirds(p_Width, p_Height, p_X, p_Y, inRGB, lineWidth, colorRuleOfThirds);
+        thirdsOut = mix(inRGB, tempThirds, ruleOfThirdsOpacity);
+    }
+
+    // Render Rule of Thirds Center
+    if (enableRuleOfThirdsCenter == 1) {
+        float3 tempCenter = drawRuleOfThirdsCenter(p_Width, p_Height, p_X, p_Y, thirdsOut, colorRuleOfThirdsCenter);
+        centerOut = mix(thirdsOut, tempCenter, ruleOfThirdsCenterOpacity);
+    } else {
+        centerOut = thirdsOut;
+    }
+
+    // Render Golden Ratio lines
+    if (enableGoldenRatio == 1) {
+        float3 tempRatio = drawGoldenRatio(p_Width, p_Height, p_X, p_Y, centerOut, lineWidth, colorGoldenRatio);
+        ratioOut = mix(centerOut, tempRatio, goldenRatioOpacity);
+    } else {
+        ratioOut = centerOut;
+    }
+
+    // Render Golden Spiral
+    if (enableGoldenSpiral == 1) {
+        float3 tempSpiral = drawGoldenSpiral(p_Width, p_Height, p_X, p_Y, ratioOut, lineWidth, colorGoldenSpiral, flipGoldenSpiralV, flipGoldenSpiralH);
+        spiralOut = mix(ratioOut, tempSpiral, goldenSpiralOpacity);
+    } else {
+        spiralOut = ratioOut;
+    }
+
+    // Final output will be the combined result of the guides
+    out = spiralOut;
+
+    // Render Crosshair last, on top of everything, without affecting other guides
+    if (enableCrosshair == 1) {
+        float3 tempCrosshair = drawCrosshair(p_Width, p_Height, p_X, p_Y, inRGB, lineWidth, colorCrosshair);
+        
+        // Apply crosshair opacity only where the crosshair is being drawn (compare individual components)
+        if ((tempCrosshair.x != inRGB.x) || (tempCrosshair.y != inRGB.y) || (tempCrosshair.z != inRGB.z)) {
+            out = mix(out, tempCrosshair, crosshairOpacity);
+        }
+    }
+
+    // Output the final result
+    return out;
+}
+
+
+

@@ -6,7 +6,7 @@
 // UI parameter definitions
 DEFINE_UI_PARAMS(p_TargetHue, Target Skintone, DCTLUI_SLIDER_FLOAT, 0.15, -0.5, 0.5, 0.001) // Hue to be turned green
 DEFINE_UI_PARAMS(p_TargetWidth, Skintone Width, DCTLUI_SLIDER_FLOAT, 0.025, 0.01, 0.05, 0.001) // Width of the skintone selected
-DEFINE_UI_PARAMS(p_dimToggle, Log Input, DCTLUI_CHECK_BOX, 1)
+DEFINE_UI_PARAMS(p_dimToggle, Log Input, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_PARAMS(p_showHelper, Show Guide, DCTLUI_CHECK_BOX, 1)
 DEFINE_UI_PARAMS(p_keepOriginal, Keep Original Color, DCTLUI_CHECK_BOX, 0)
 
@@ -76,8 +76,8 @@ __DEVICE__ float3 showHelper(int p_Width, int p_Height, int p_X, int p_Y, float3
     int threshold = p_Height * 0.05;
     // Calculate section width
     int sectionWidth = p_Width / 3;
-    // Calculate scale to make text 1/4 the height of the bottom bar
-    int scale = threshold / 10;
+    // Calculate scale to make text 1/8 the height of the bottom bar
+    int scale = threshold / 20;
 
     // If the current pixel is within the bottom 5%, change its color based on horizontal position
     if (p_Y >= p_Height - threshold) {
@@ -201,7 +201,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 
     float3 green = make_float3(0, 1, 0);
     float3 red = make_float3(1, 0, 0);
-    float3 yellow = make_float3(1, 0.75, 0);
+    float3 yellow = make_float3(1, 1, 0);
 
     // Set blendAmount based on p_dimToggle
     float blendAmount = (p_dimToggle == 1) ? 0.25 : 0.65;

@@ -1,11 +1,12 @@
-#line 2 // This line makes line numbers appear correctly in the log file
 #include "zCCTF.dctl"
+#line 3 // This line makes line numbers appear correctly in the log file
+
 
 // Define UI Parameters
-DEFINE_UI_PARAMS(p_ColorspaceIn, Colorspace In, DCTLUI_COMBO_BOX, 7, {ACES_CGIn, ACES_CCTIn, AppleLogIn, ArriWideGamut3In, ArriWideGamut4In, BlackMagicWideGamutGen5In, CanonCinemaGamutIn, DaVinciWideGamutIn, DCIP3In, FilmLightEGamutIn, FujiFGamutIn, P3D65In, PanasonicVGamutIn, Rec2020In, Rec709In, RedWideGamutIn, SGamut3In, SGamut3CineIn, SGamut3VeniceIn, SGamut3VeniceCineIn}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
+DEFINE_UI_PARAMS(p_ColorspaceIn, Colorspace In, DCTLUI_COMBO_BOX, 7, {ACES_CGIn, ACES_CCTIn, AppleLogIn, ArriWideGamut3In, ArriWideGamut4In, BlackMagicWideGamutGen5In, CanonCinemaGamutIn, DaVinciWideGamutIn, DCIP3In, DGamutIn, FilmLightEGamutIn, FujiFGamutIn, P3D65In, PanasonicVGamutIn, Rec2020In, Rec709In, RedWideGamutIn, SGamut3In, SGamut3CineIn, SGamut3VeniceIn, SGamut3VeniceCineIn}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, DJI D-Gamut, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
 DEFINE_UI_PARAMS(p_TransferFunctionIn, Gamma In, DCTLUI_COMBO_BOX, 10, {acesCCIn, acesCCTIn, appleLogIn, arriLogC3In, arriLogC4In, blackmagicFilmGen5In, canonLogIn, canonLog2In, canonLog3In, cineonIn, davinciIntermediateIn, djiDLogIn, filmLightTLogIn, fLogIn, fLog2In, goproProtuneIn, leicaLogIn, nLogIn, vLogIn, rec2020In, rec709In, redLog3G10In, sonySLogIn, sonySLog2In, sonySLog3In, st2084PQIn}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
-DEFINE_UI_PARAMS(p_ColorspaceOut, Colorspace Out, DCTLUI_COMBO_BOX, 14, {ACES_CGOut, ACES_CCTOut, AppleLogOut, ArriWideGamut3Out, ArriWideGamut4Out, BlackMagicWideGamutGen5Out, CanonCinemaGamutOut, DaVinciWideGamutOut, DCIP3Out, FilmLightEGamutOut, FujiFGamutOut, P3D65Out, PanasonicVGamutOut, Rec2020Out, Rec709Out, RedWideGamutOut, SGamut3Out, SGamut3CineOut, SGamut3VeniceOut, SGamut3VeniceCineOut}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
-DEFINE_UI_PARAMS(p_TransferFunctionOut, Gamma Out, DCTLUI_COMBO_BOX, 19, {acesCCOut, acesCCTOut, appleLogOut, arriLogC3Out, arriLogC4Out, blackmagicFilmGen5Out, canonLogOut, canonLog2Out, canonLog3Out, cineonOut, davinciIntermediateOut, djiDLogOut, filmLightTLogOut, fLogOut, fLog2Out, goproProtuneOut, leicaLogOut, nLogOut, vLogOut, rec2020Out, rec709Out, redLog3G10Out, sonySLogOut, sonySLog2Out, sonySLog3Out, st2084PQOut}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
+DEFINE_UI_PARAMS(p_ColorspaceOut, Colorspace Out, DCTLUI_COMBO_BOX, 15, {ACES_CGOut, ACES_CCTOut, AppleLogOut, ArriWideGamut3Out, ArriWideGamut4Out, BlackMagicWideGamutGen5Out, CanonCinemaGamutOut, DaVinciWideGamutOut, DCIP3Out, DGamutOut, FilmLightEGamutOut, FujiFGamutOut, P3D65Out, PanasonicVGamutOut, Rec2020Out, Rec709Out, RedWideGamutOut, SGamut3Out, SGamut3CineOut, SGamut3VeniceOut, SGamut3VeniceCineOut}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, DJI D-Gamut, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
+DEFINE_UI_PARAMS(p_TransferFunctionOut, Gamma Out, DCTLUI_COMBO_BOX, 20, {acesCCOut, acesCCTOut, appleLogOut, arriLogC3Out, arriLogC4Out, blackmagicFilmGen5Out, canonLogOut, canonLog2Out, canonLog3Out, cineonOut, davinciIntermediateOut, djiDLogOut, filmLightTLogOut, fLogOut, fLog2Out, goproProtuneOut, leicaLogOut, nLogOut, vLogOut, rec2020Out, rec709Out, redLog3G10Out, sonySLogOut, sonySLog2Out, sonySLog3Out, st2084PQOut}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
 DEFINE_UI_PARAMS(p_ToneMapping, Tone Mapping, DCTLUI_COMBO_BOX, 3, {toneMapACESOption, toneMapAcesHybridOption, toneMapDavinciOption, toneMapDavinciHybridOption, toneMapFilmicOption,  toneMapFilmicHybridOption, toneMapNone, toneMapReinhardOption}, {ACES, ACES Hybrid, DaVinci, Davinci Hybrid,  Filmic,  Filmic Hybrid, None, Reinhard})
 DEFINE_UI_PARAMS(p_gamutCompression, Gamut Compression, DCTLUI_COMBO_BOX, 1, {gamutCompNone, gamutCompSaturationPreserving}, {None, Saturation Preserving})
 
@@ -35,9 +36,25 @@ __DEVICE__ float rolloff_function(float x, float a, float b) {
 }
 
 
-__DEVICE__ float3 applyDavinciToneMapping(float3 in) {
-    float input_white = 10000.0 / 100.0;
-    float output_white = 100.0 / 100.0;
+__DEVICE__ float3 applyDavinciToneMapping(float3 in, int p_TransferFunctionIn, int p_TransferFunctionOut) {
+    // Declare input_white and output_white before the if statements
+    float input_white;
+    float output_white;
+
+    // Set input_white based on the input transfer function
+    if (p_TransferFunctionIn == rec709In) {
+        input_white = 100.0f / 100.00;
+    } else {
+        input_white = 10000.0f / 100.00;
+    }
+
+    // Set output_white based on the output transfer function
+    if (p_TransferFunctionOut == rec709Out) {
+        output_white = 100.0f / 100.00;
+    } else {
+        output_white = 10000.0f / 100.00;
+    }
+
     float adaptation = 9.0;
 
     float3 out = in;
@@ -51,8 +68,13 @@ __DEVICE__ float3 applyDavinciToneMapping(float3 in) {
         out.z = rolloff_function(out.z, a, b);
     }
 
+    out.x = clamp(out.x, 0.0f, output_white);
+    out.y = clamp(out.y, 0.0f, output_white);
+    out.z = clamp(out.z, 0.0f, output_white);
+
     return out;
 }
+
 
 
 // ACES Tone Mapping Functions
@@ -107,7 +129,7 @@ __DEVICE__ float calculateSaturation(float3 in) {
 }
 
 // Main blending function
-__DEVICE__ float3 blendToneMappings(float3 in, int toneMappingOption) {
+__DEVICE__ float3 blendToneMappings(float3 in, int toneMappingOption, int p_TransferFunctionIn, int p_TransferFunctionOut) {
     // Calculate saturation from linear input
     float saturation = calculateSaturation(in);
 
@@ -119,7 +141,7 @@ __DEVICE__ float3 blendToneMappings(float3 in, int toneMappingOption) {
     if (toneMappingOption == toneMapACESOption) {
         selectedToneMapped = applyAcesToneMapping(in);
     } else if (toneMappingOption == toneMapDavinciOption) {
-        selectedToneMapped = applyDavinciToneMapping(in);
+        selectedToneMapped = applyDavinciToneMapping(in, p_TransferFunctionIn, p_TransferFunctionOut);
     } else if (toneMappingOption == toneMapFilmicOption) {
         selectedToneMapped = applyFilmicToneMapping(in);
     } else if (toneMappingOption == toneMapReinhardOption) {
@@ -128,7 +150,7 @@ __DEVICE__ float3 blendToneMappings(float3 in, int toneMappingOption) {
         return in; // No tone mapping
     } else if (toneMappingOption == toneMapDavinciHybridOption) {
         // Hybrid (DaVinci + Reinhard)
-        selectedToneMapped = applyDavinciToneMapping(in);
+        selectedToneMapped = applyDavinciToneMapping(in, p_TransferFunctionIn, p_TransferFunctionOut);
     } else if (toneMappingOption == toneMapFilmicHybridOption) {
         // Hybrid Filmic (Filmic + Reinhard)
         selectedToneMapped = applyFilmicToneMapping(in);
@@ -141,7 +163,7 @@ __DEVICE__ float3 blendToneMappings(float3 in, int toneMappingOption) {
 
     // Blend between Reinhard and selected tone mapping based on saturation
     float3 blended;
-    float reinhard_factor = smoothstep(0.9f, 1.0f, saturation); // Only highly saturated pixels get more Reinhard tone mapping
+    float reinhard_factor = smoothstep(0.6f, 1.0f, saturation); // Only highly saturated pixels get more Reinhard tone mapping
     blended.x = reinhard.x * reinhard_factor + selectedToneMapped.x * (1.0f - reinhard_factor);
     blended.y = reinhard.y * reinhard_factor + selectedToneMapped.y * (1.0f - reinhard_factor);
     blended.z = reinhard.z * reinhard_factor + selectedToneMapped.z * (1.0f - reinhard_factor);
@@ -173,11 +195,11 @@ __DEVICE__ float compressValue(float x, float t, float s, float p) {
 }
 
 __DEVICE__ float3 compressGamut(float3 in) {
-    float threshold = 0.1f;
-    float max_distance_r = 1.2f;
-    float max_distance_g = 1.2f;
-    float max_distance_b = 1.2f;
-    float aggressiveness = 1.5f;
+    float threshold = 0.0f;
+    float max_distance_r = 1.0;
+    float max_distance_g = 1.0f;
+    float max_distance_b = 1.0f;
+    float aggressiveness = 0.5f;
     float luminance_strength = 1.0f;
     // Calculate chroma (distance from achromatic axis)
     float max_rgb = max(in.x, max(in.y, in.z));
@@ -291,6 +313,7 @@ __DEVICE__ float3 convertColorspaceToXYZ(float3 in, int colorspaceIn) {
     if (colorspaceIn == BlackMagicWideGamutGen5In) return BlackMagicWideGamutGen5toXYZ(in);
     if (colorspaceIn == CanonCinemaGamutIn) return CanonCinemaGamuttoXYZ(in);
     if (colorspaceIn == DaVinciWideGamutIn) return DaVinciWideGamuttoXYZ(in);
+    if (colorspaceIn == DGamutIn) return DJIDGamuttoXYZ(in);
     if (colorspaceIn == FilmLightEGamutIn) return FilmLightEGamuttoXYZ(in);
     if (colorspaceIn == FujiFGamutIn) return FujiFGamuttoXYZ(in);
     if (colorspaceIn == P3D65In) return P3D65toXYZ(in);
@@ -315,6 +338,7 @@ __DEVICE__ float3 convertXYZToColorspace(float3 in, int colorspaceOut) {
     if (colorspaceOut == BlackMagicWideGamutGen5Out) return XYZtoBlackMagicWideGamutGen5(in);
     if (colorspaceOut == CanonCinemaGamutOut) return XYZtoCanonCinemaGamut(in);
     if (colorspaceOut == DaVinciWideGamutOut) return XYZtoDaVinciWideGamut(in);
+    if (colorspaceOut == DGamutOut) return XYZtoDJIDGamut(in);
     if (colorspaceOut == FilmLightEGamutOut) return XYZtoFilmLightEGamut(in);
     if (colorspaceOut == FujiFGamutOut) return XYZtoFujiFGamut(in);
     if (colorspaceOut == P3D65Out) return XYZtoP3D65(in);
@@ -342,17 +366,17 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 if (p_ToneMapping == toneMapACESOption) {
     out = applyAcesToneMapping(out);
 } else if (p_ToneMapping == toneMapDavinciOption) {
-    out = applyDavinciToneMapping(out);
+    out = applyDavinciToneMapping(out, p_TransferFunctionIn, p_TransferFunctionOut);
 } else if (p_ToneMapping == toneMapFilmicOption) {
     out = applyFilmicToneMapping(out);
 } else if (p_ToneMapping == toneMapReinhardOption) {
     out = applyReinhardToneMapping(out);
 } else if (p_ToneMapping == toneMapDavinciHybridOption) {
-    out = blendToneMappings(out, p_ToneMapping);
+    out = blendToneMappings(out, p_ToneMapping, p_TransferFunctionIn, p_TransferFunctionOut);
 } else if (p_ToneMapping == toneMapFilmicHybridOption) {
-    out = blendToneMappings(out, p_ToneMapping);
+    out = blendToneMappings(out, p_ToneMapping, p_TransferFunctionIn, p_TransferFunctionOut);
 } else if (p_ToneMapping == toneMapAcesHybridOption) {
-    out = blendToneMappings(out, p_ToneMapping);
+    out = blendToneMappings(out, p_ToneMapping, p_TransferFunctionIn, p_TransferFunctionOut);
 }
 
     // Convert from Colorspace In to XYZ
