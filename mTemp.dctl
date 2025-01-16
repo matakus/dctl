@@ -7,25 +7,31 @@
 
 #include "zCCTF.dctl"
 
+//------------------------------------------------------------------------------
 // UI Parameters
 //------------------------------------------------------------------------------
 
 // Temperature Controls
 DEFINE_UI_PARAMS(p_InputTemperature, Source Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0)
+DEFINE_UI_TOOLTIP(Source Kelvin, "Source Temperture in Kelvin")
 DEFINE_UI_PARAMS(p_Temperature, Target Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0)
+DEFINE_UI_TOOLTIP(Target Kelvin, "Target Temperture in Kelvin")
 DEFINE_UI_PARAMS(p_Tint, Tint - Green / Magenta, DCTLUI_SLIDER_FLOAT, 0.0, -150.0, 150.0, 1.0)
+DEFINE_UI_TOOLTIP(Tint - Green / Magenta, "Add or subtract green or magenta to the image")
 
 // Mode Selection
 DEFINE_UI_PARAMS(p_Mode, White Balance Mode, DCTLUI_COMBO_BOX, 0, {Temperature, Custom, Average}, {Temperature Based, Custom White Balance, Auto Average (Slow)})
-DEFINE_UI_TOOLTIP(White Balance Mode, "Temperature or user defined")
+DEFINE_UI_TOOLTIP(White Balance Mode, "Method used to adjust the white balance")
 
 // Sampling Parameters
 DEFINE_UI_PARAMS(sample_block_size, Sample Block Size, DCTLUI_SLIDER_INT, 32, 32, 256, 32)
+DEFINE_UI_TOOLTIP(Sample Block Size, "Sizes of the blocks used for averaging")
 DEFINE_UI_PARAMS(p_ShowAvgBox, Show Input Average, DCTLUI_CHECK_BOX, 0)
+DEFINE_UI_TOOLTIP(Show Input Average, "Shows the average color of the input image based on the Sample Block Size"))
 
 // Color Space Selection
 DEFINE_UI_PARAMS(p_SourceInput, Source Input, DCTLUI_COMBO_BOX, 8, {AcesCCT_AP1, AcesCG_AP1, AppleLog_Rec2020, ArriLogC3_AWG3, ArriLogC4_AWG4, BlackmagicFilmGen5_BMWideGamut, CanonLog2_CanonCinemaGamut, CanonLog3_CanonCinemaGamut, DaVinciIntermediate_DWG, DJI_DLog_DGamut, FilmlightTLog_EGamut, FujiFLog_FGamut, FujiFLog2_FGamut, GoProProtune_GoProGamut, LeicaLLog_Rec2020, PanasonicVLog_VGamut, RedLog3G10_RWG, SonySLog2_SGamut, SonySLog3_SGamut, SonySLog3_SGamutCine, SonySLog3_SGamutVenice, SonySLog3_SGamutVeniceCine}, {Aces CCT / AP1, Aces CG / AP1, Apple Log / Rec2020, Arri LogC3 / AWG3, Arri LogC4 / AWG4, Blackmagic Film Gen5 / BM Wide Gamut, Canon Log 2 / Canon Cinema Gamut, Canon Log 3 / Canon Cinema Gamut, DaVinci Intermediate / DWG, DJI D-Log / D-Gamut, Filmlight T-Log / E-Gamut, Fuji F-Log / F-Gamut, Fuji F-Log2 / F-Gamut, GoPro Protune / GoPro Gamut, Leica L-Log / Rec2020, Panasonic V-Log / V-Gamut, Red Log3G10 / RWG, Sony S-Log2 / S-Gamut 3, Sony S-Log3 / S-Gamut 3, Sony S-Log3 / S-Gamut 3.Cine, Sony S-Log3 / S-Gamut 3 Venice, Sony S-Log3 / S-Gamut 3.Cine Venice})
-DEFINE_UI_TOOLTIP(Source Input, "Select the input's gamma")
+DEFINE_UI_TOOLTIP(Source Input, "Source Input Color Space and Transfer Function")
 
 // Custom White Balance Color Picker
 DEFINE_UI_PARAMS(tgtColor, Custom White Balance, DCTLUI_COLOR_PICKER, 0.5f, 0.5f, 0.5f)
@@ -114,6 +120,7 @@ __DEVICE__ void applyTintAdjustment(thread float* x_in_out, thread float* y_in_o
     }
 }
 
+//------------------------------------------------------------------------------
 // Color Adaptation Functions
 //------------------------------------------------------------------------------
 
@@ -151,6 +158,7 @@ __DEVICE__ float3 applyCAT02Adaptation(float3 XYZ, float3 sourceWhiteXYZ, float3
     return multiplyMatrix(LMS_adapted, invCAT02);
 }
 
+//------------------------------------------------------------------------------
 // Conversion Functions
 //------------------------------------------------------------------------------
 
@@ -226,7 +234,8 @@ __DEVICE__ OutputConversionFunctions selectOutputConversionFunctions(int sourceI
     return funcs;
 }
 
-// Main transform function
+//------------------------------------------------------------------------------
+// Main Function
 //------------------------------------------------------------------------------
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, __TEXTURE__ p_TexG, __TEXTURE__ p_TexB) {

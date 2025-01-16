@@ -4,6 +4,7 @@
 // Author: Matt.C
 // Description: Adjusts Saturation and Density of an image with masks to restore detail in shadows and highlights
 
+//------------------------------------------------------------------------------
 // UI Parameters
 //------------------------------------------------------------------------------
 
