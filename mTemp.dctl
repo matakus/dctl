@@ -309,10 +309,10 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
         }
     }
 
-    // Convert average to log space if needed
+    // Convert average to log space
     float3 avgColorLog = outputConversion.linToLogFunc(avgLin);
 
-    // Show average color patch if requested
+    // Show average color patch
     if (showBox && p_X < 200 && p_Y < 200) {
         return avgColorLog;
     }
