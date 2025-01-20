@@ -106,7 +106,7 @@ DEFINE_UI_PARAMS(pMathType, Saturation Type, DCTLUI_COMBO_BOX, 0, {saturationMat
 DEFINE_UI_TOOLTIP(Saturation Type, "How Saturation is applied"
 
 // Falloff Curve Type ComboBox
-DEFINE_UI_PARAMS(pCurveType, Falloff Curve, DCTLUI_COMBO_BOX, 0, {smoothStepFalloffType, bellCurveFalloffType}, {Smooth Step, Bell Curve})
+DEFINE_UI_PARAMS(pCurveType, Falloff Curve, DCTLUI_COMBO_BOX, 1, {smoothStepFalloffType, bellCurveFalloffType}, {Smooth Step, Bell Curve})
 DEFINE_UI_TOOLTIP(Falloff Curve, "How Hues are blended together")
 
 //------------------------------------------------------------------------------
