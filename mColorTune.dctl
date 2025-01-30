@@ -103,7 +103,7 @@ DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)                      
 
 // Saturation Type ComboBox
 DEFINE_UI_PARAMS(pMathType, Saturation Type, DCTLUI_COMBO_BOX, 0, {saturationMath, vibranceMath}, {Saturation, Vibrance})
-DEFINE_UI_TOOLTIP(Saturation Type, "How Saturation is applied"
+DEFINE_UI_TOOLTIP(Saturation Type, "How Saturation is applied")
 
 // Falloff Curve Type ComboBox
 DEFINE_UI_PARAMS(pCurveType, Falloff Curve, DCTLUI_COMBO_BOX, 1, {smoothStepFalloffType, bellCurveFalloffType}, {Smooth Step, Bell Curve})
@@ -306,31 +306,49 @@ __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer
     return _mix3(adjusted_color, color, protectionStrength);
 }
 
-// Function to adjust vibrance with balanced falloff
+//Function to adjust vibrance with falloff
 __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
-    vibrance -= 1.0f; // Offset vibrance slider for adjustment
-
+    vibrance -= 1.0f;
+    
     // Get the maximum and minimum RGB channel values
     float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
     float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
-    float currentSaturation = ach == 0.0f ? 0.0f : (ach - minColor) / ach; // Calculate current saturation level
-
-    // Use a mixed linear and log-based approach for a balanced falloff
-    float smoothFactor = 0.1f; // Reduce the impact of smoothing, balancing it
+    
+    // Add small epsilon to prevent division by zero
+    float safeDivisor = _fmaxf(ach, EPSILON);
+    
+    // Calculate current saturation level with protection against very small values
+    float currentSaturation = (ach - minColor) / safeDivisor;
+    
+    // Ensure currentSaturation is in valid range [0,1]
+    currentSaturation = _fmaxf(0.0f, _fminf(1.0f, currentSaturation));
+    
+    float smoothFactor = 0.1f;
+    
+    // Protect log calculation from negative or zero values
+    float safeLogInput = _fmaxf(1.0f + currentSaturation, EPSILON);
+    
     float adjustedVibranceEffect = vibrance > 0 ?
-        1.0f + (1.0f - currentSaturation * (1.0f - smoothFactor * _logf(1.0f + currentSaturation))) * vibrance :
-        1.0f + currentSaturation * (1.0f - smoothFactor * _logf(1.0f + (1.0f - currentSaturation))) * vibrance;
-
-    // Compute new RGB values based on vibrance adjustment
-    float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
+        1.0f + (1.0f - currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput))) * vibrance :
+        1.0f + currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput)) * vibrance;
+    
+    // Compute distance with protection against division by zero
+    float3 distance;
+    if (ach < EPSILON) {
+        distance = make_float3(0.0f, 0.0f, 0.0f);
+    } else {
+        distance = (ach - rgb) / ach;
+    }
+    
     distance *= adjustedVibranceEffect;
-
-    // Clamp the RGB values to ensure they stay within [0.0f, 1.0f]
+    
+    // Calculate new RGB values with protected multiplication
     float3 newRGB;
-    newRGB.x = _fmaxf(_fminf(ach - distance.x * _fabs(ach), 1.0f), 0.0f);
-    newRGB.y = _fmaxf(_fminf(ach - distance.y * _fabs(ach), 1.0f), 0.0f);
-    newRGB.z = _fmaxf(_fminf(ach - distance.z * _fabs(ach), 1.0f), 0.0f);
-
+    float safeAch = _fmaxf(ach, EPSILON);
+    newRGB.x = _fmaxf(_fminf(ach - distance.x * safeAch, 1.0f), 0.0f);
+    newRGB.y = _fmaxf(_fminf(ach - distance.y * safeAch, 1.0f), 0.0f);
+    newRGB.z = _fmaxf(_fminf(ach - distance.z * safeAch, 1.0f), 0.0f);
+    
     return newRGB;
 }
 
