@@ -325,12 +325,11 @@ __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
     float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
     distance *= adjustedVibranceEffect;
 
-    float3 newRGB = ach - distance * _fabs(ach);
-
     // Clamp the RGB values to ensure they stay within [0.0f, 1.0f]
-    newRGB.x = _fmaxf(newRGB.x, 0.0f);
-    newRGB.y = _fmaxf(newRGB.y, 0.0f);
-    newRGB.z = _fmaxf(newRGB.z, 0.0f);
+    float3 newRGB;
+    newRGB.x = _fmaxf(_fminf(ach - distance.x * _fabs(ach), 1.0f), 0.0f);
+    newRGB.y = _fmaxf(_fminf(ach - distance.y * _fabs(ach), 1.0f), 0.0f);
+    newRGB.z = _fmaxf(_fminf(ach - distance.z * _fabs(ach), 1.0f), 0.0f);
 
     return newRGB;
 }
