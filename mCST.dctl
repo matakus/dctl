@@ -1,45 +1,49 @@
+#line 2
+
+// Colour Space Transform DCTL v1.03
+// Author: Matt.C
+// Description: Transfers to and from various Colorspaces and Log encodings,
+// applying one of several tone mapping algorithms (ACES, DaVinci, Filmic, Hybrid, Reinhard)
+// along with optional gamut compression.
+
 #include "zCCTF.dctl"
-#line 3 // This line makes line numbers appear correctly in the log file
 
-// Colour Space Transfrom DCTL // // 1.01 // Matt.C
-// Transfer to and from Coloursapces and Log. Some diffrent tone mapping as well. 
+//------------------------------------------------------------------------------
+// UI PARAMETERS
+//------------------------------------------------------------------------------
 
-// Define UI Parameters
-DEFINE_UI_PARAMS(p_ColorspaceIn, Colorspace In, DCTLUI_COMBO_BOX, 7, {ACES_CGIn, ACES_CCTIn, AppleLogIn, ArriWideGamut3In, ArriWideGamut4In, BlackMagicWideGamutGen5In, CanonCinemaGamutIn, DaVinciWideGamutIn, DCIP3In, DGamutIn, FilmLightEGamutIn, FujiFGamutIn, P3D65In, PanasonicVGamutIn, Rec2020In, Rec709In, RedWideGamutIn, SGamut3In, SGamut3CineIn, SGamut3VeniceIn, SGamut3VeniceCineIn}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, DJI D-Gamut, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
-DEFINE_UI_PARAMS(p_TransferFunctionIn, Gamma In, DCTLUI_COMBO_BOX, 10, {acesCCIn, acesCCTIn, appleLogIn, arriLogC3In, arriLogC4In, blackmagicFilmGen5In, canonLogIn, canonLog2In, canonLog3In, cineonIn, davinciIntermediateIn, djiDLogIn, filmLightTLogIn, fLogIn, fLog2In, goproProtuneIn, leicaLogIn, nLogIn, vLogIn, rec2020In, rec709In, redLog3G10In, sonySLogIn, sonySLog2In, sonySLog3In, st2084PQIn}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
-DEFINE_UI_PARAMS(p_ColorspaceOut, Colorspace Out, DCTLUI_COMBO_BOX, 15, {ACES_CGOut, ACES_CCTOut, AppleLogOut, ArriWideGamut3Out, ArriWideGamut4Out, BlackMagicWideGamutGen5Out, CanonCinemaGamutOut, DaVinciWideGamutOut, DCIP3Out, DGamutOut, FilmLightEGamutOut, FujiFGamutOut, P3D65Out, PanasonicVGamutOut, Rec2020Out, Rec709Out, RedWideGamutOut, SGamut3Out, SGamut3CineOut, SGamut3VeniceOut, SGamut3VeniceCineOut}, {ACES CG, ACES CCT, Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, DJI D-Gamut, FilmLight E-Gamut, Fuji F Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
-DEFINE_UI_PARAMS(p_TransferFunctionOut, Gamma Out, DCTLUI_COMBO_BOX, 20, {acesCCOut, acesCCTOut, appleLogOut, arriLogC3Out, arriLogC4Out, blackmagicFilmGen5Out, canonLogOut, canonLog2Out, canonLog3Out, cineonOut, davinciIntermediateOut, djiDLogOut, filmLightTLogOut, fLogOut, fLog2Out, goproProtuneOut, leicaLogOut, nLogOut, vLogOut, rec2020Out, rec709Out, redLog3G10Out, sonySLogOut, sonySLog2Out, sonySLog3Out, st2084PQOut}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
-DEFINE_UI_PARAMS(p_ToneMapping, Tone Mapping, DCTLUI_COMBO_BOX, 3, {toneMapACESOption, toneMapAcesHybridOption, toneMapDavinciOption, toneMapDavinciHybridOption, toneMapFilmicOption,  toneMapFilmicHybridOption, toneMapNone, toneMapReinhardOption}, {ACES, ACES Hybrid, DaVinci, Davinci Hybrid,  Filmic,  Filmic Hybrid, None, Reinhard})
-DEFINE_UI_PARAMS(p_gamutCompression, Gamut Compression, DCTLUI_COMBO_BOX, 1, {gamutCompNone, gamutCompSaturationPreserving}, {None, Saturation Preserving})
+// Colorspace and Transfer Function Selection
+DEFINE_UI_PARAMS(p_ColorspaceIn, Color Space In, DCTLUI_COMBO_BOX, 8, {ACES_2065In, ACES_CGIn, ACES_CCTIn, AppleLogIn, ArriWideGamut3In, ArriWideGamut4In, BlackMagicWideGamutGen5In, CanonCinemaGamutIn, DaVinciWideGamutIn, DCIP3In, DGamutIn, FilmLightEGamutIn, FujiFGamutIn, P3D65In, PanasonicVGamutIn, Rec2020In, Rec709In, RedWideGamutIn, SGamut3In, SGamut3CineIn, SGamut3VeniceIn, SGamut3VeniceCineIn}, {ACES 2065-1 (AP0), ACES CG (AP1), ACES CCT (AP1), Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, DJI D-Gamut, FilmLight E-Gamut, Fuji F-Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
+DEFINE_UI_PARAMS(p_TransferFunctionIn, Gamma In, DCTLUI_COMBO_BOX, 10, {acesCCIn, acesCCTIn, appleLogIn, arriLogC3In, arriLogC4In, blackmagicFilmGen5In, canonLogIn, canonLog2In, canonLog3In, cineonIn, davinciIntermediateIn, djiDLogIn, filmLightTLogIn, fLogIn, fLog2In, goproProtuneIn, linearIn, leicaLogIn, nLogIn, vLogIn, rec2020In, rec709In, redLog3G10In, sonySLogIn, sonySLog2In, sonySLog3In, st2084PQIn}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Linear, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
+DEFINE_UI_PARAMS(p_ColorspaceOut, Color Space Out, DCTLUI_COMBO_BOX, 16, {ACES_2065Out, ACES_CGOut, ACES_CCTOut, AppleLogOut, ArriWideGamut3Out, ArriWideGamut4Out, BlackMagicWideGamutGen5Out, CanonCinemaGamutOut, DaVinciWideGamutOut, DCIP3Out, DGamutOut, FilmLightEGamutOut, FujiFGamutOut, P3D65Out, PanasonicVGamutOut, Rec2020Out, Rec709Out, RedWideGamutOut, SGamut3Out, SGamut3CineOut, SGamut3VeniceOut, SGamut3VeniceCineOut}, {ACES 2065-1 (AP0), ACES CG (AP1), ACES CCT (AP1), Apple Log, Arri Wide Gamut 3, Arri Wide Gamut 4, BlackMagic Wide Gamut Gen5, Canon Cinema Gamut, DaVinci Wide Gamut, DCI-P3, DJI D-Gamut, FilmLight E-Gamut, Fuji F-Gamut, P3-D65, Panasonic V-Gamut, Rec.2020, Rec.709, Red Wide Gamut, S-Gamut3, S-Gamut3.Cine, S-Gamut3 Venice, S-Gamut3 Venice.Cine})
+DEFINE_UI_PARAMS(p_TransferFunctionOut, Gamma Out, DCTLUI_COMBO_BOX, 21, {acesCCOut, acesCCTOut, appleLogOut, arriLogC3Out, arriLogC4Out, blackmagicFilmGen5Out, canonLogOut, canonLog2Out, canonLog3Out, cineonOut, davinciIntermediateOut, djiDLogOut, filmLightTLogOut, fLogOut, fLog2Out, goproProtuneOut, linearOut, leicaLogOut, nLogOut, vLogOut, rec2020Out, rec709Out, redLog3G10Out, sonySLogOut, sonySLog2Out, sonySLog3Out, st2084PQOut}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen5, Canon Log, Canon Log 2, Canon Log 3, Cineon, DaVinci Intermediate, DJI D-Log, FilmLight T-Log, Fuji F-Log, Fuji F-Log2, GoPro Protune, Linear, Leica Log, Nikon N-Log, Panasonic V-Log, Rec.2020, Rec.709, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3, ST.2084 (PQ)})
 
-// Tone Mapping Functions
+// Tone Mapping & Gamut Compression Options
+DEFINE_UI_PARAMS(p_ToneMapping, Tone Mapping, DCTLUI_COMBO_BOX, 1, {toneMapACESOption, toneMapDavinciOption, toneMapFilmicOption, toneMapHybirdOption, toneMapNone, toneMapReinhardOption}, {ACES, DaVinci, Filmic, Hybird, None, Reinhard})
+DEFINE_UI_PARAMS(p_gamutCompression, Gamut Compression, DCTLUI_COMBO_BOX, 1, {gamutCompNone, gamutCompSaturationPreserving, gamutCompACES}, {None, Saturation Preserving, ACES})
+
+//------------------------------------------------------------------------------
+// TONE MAPPING FUNCTIONS
+//------------------------------------------------------------------------------
 
 // Reinhard Tone Mapping
 __DEVICE__ float3 applyReinhardToneMapping(float3 in) {
-    float luminance = (0.2126f * in.x) + (0.7152f  * in.y) + (0.0722f * in.z);
+    float luminance = (0.2126f * in.x) + (0.7152f * in.y) + (0.0722f * in.z);
     float toneMappedLuminance = luminance / (1.0f + luminance);
     float3 toneMappedColor = in * (toneMappedLuminance / luminance);
     return toneMappedColor;
 }
 
 // DaVinci Tone Mapping
-
 __DEVICE__ float powf(float base, float exp) {
     return _copysignf(_powf(_fabs(base), exp), base);
 }
 
-__DEVICE__ float contrast(float x, float mid_gray, float gamma) {
-    return mid_gray * powf(x / mid_gray, gamma);
-}
-
-// g(x) = a * (x / (x+b)) + c
 __DEVICE__ float rolloff_function(float x, float a, float b) {
     return a * (x / (x + b));
 }
 
-
 __DEVICE__ float3 applyDavinciToneMapping(float3 in, int p_TransferFunctionIn, int p_TransferFunctionOut) {
-    // Declare input_white and output_white before the if statements
     float input_white;
     float output_white;
 
@@ -60,10 +64,9 @@ __DEVICE__ float3 applyDavinciToneMapping(float3 in, int p_TransferFunctionIn, i
     float adaptation = 9.0;
 
     float3 out = in;
-    float b = (input_white - (adaptation / 100.0) * (input_white / output_white)) / ((input_white / output_white) - 1);
-
-    // Constraint 1: f(W_in) = W_out
+    float b = (input_white - (adaptation / 100.0f) * (input_white / output_white)) / ((input_white / output_white) - 1);
     float a = output_white / (input_white / (input_white + b));
+
     if (input_white != output_white) {
         out.x = rolloff_function(out.x, a, b);
         out.y = rolloff_function(out.y, a, b);
@@ -77,8 +80,6 @@ __DEVICE__ float3 applyDavinciToneMapping(float3 in, int p_TransferFunctionIn, i
     return out;
 }
 
-
-
 // ACES Tone Mapping Functions
 __DEVICE__ float3 mul_aces_input_matrix(float3 v) {
     float x = 0.59719f * v.x + 0.35458f * v.y + 0.04823f * v.z;
@@ -88,9 +89,9 @@ __DEVICE__ float3 mul_aces_input_matrix(float3 v) {
 }
 
 __DEVICE__ float3 mul_aces_output_matrix(float3 v) {
-    float x =  1.60475f * v.x + -0.53108f * v.y + -0.07367f * v.z;
-    float y = -0.10208f * v.x +  1.10813f * v.y + -0.00605f * v.z;
-    float z = -0.00327f * v.x + -0.07276f * v.y +  1.07602f * v.z;
+    float x = 1.60475f * v.x + -0.53108f * v.y + -0.07367f * v.z;
+    float y = -0.10208f * v.x + 1.10813f * v.y + -0.00605f * v.z;
+    float z = -0.00327f * v.x + -0.07276f * v.y + 1.07602f * v.z;
     return make_float3(x, y, z);
 }
 
@@ -108,142 +109,175 @@ __DEVICE__ float3 applyAcesToneMapping(float3 color) {
 
 // Filmic Tone Mapping Function
 __DEVICE__ float3 applyFilmicToneMapping(float3 x) {
-    const float A = 0.22f;
-    const float B = 0.30f;
-    const float C = 0.10f;
-    const float D = 0.20f;
-    const float E = 0.01f;
-    const float F = 0.30f;
+    const float A = 0.22f; // Shoulder strength
+    const float B = 0.30f; // Linear strength
+    const float C = 0.10f; // Linear angle
+    const float D = 0.2f;  // Toe strength
+    const float E = 0.01f; // Toe numerator
+    const float F = 0.30f; // Toe denominator
 
     float3 color;
     color.x = ((x.x * (A * x.x + C * B) + D * E) / (x.x * (A * x.x + B) + D * F)) - E / F;
     color.y = ((x.y * (A * x.y + C * B) + D * E) / (x.y * (A * x.y + B) + D * F)) - E / F;
     color.z = ((x.z * (A * x.z + C * B) + D * E) / (x.z * (A * x.z + B) + D * F)) - E / F;
-
     return color;
 }
 
-// Function to calculate saturation
-__DEVICE__ float calculateSaturation(float3 in) {
+// Smootherstep Function
+// Implements quintic interpolation for a smoother transition.
+__DEVICE__ float smootherstep(float edge0, float edge1, float x) {
+    float t = clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+// Hybrid Tone Mapping Function
+// Uses the Davinci tone mapping for shadows/midtones and blends in the Filmic tone mapping
+// for the highlights. To create a smooth blend from a linear input, a gamma correction (1/2.2)
+// is applied to approximate perceived brightness.
+__DEVICE__ float3 applyHybirdToneMapping(float3 in, int p_TransferFunctionIn, int p_TransferFunctionOut) {
+    float3 davinci = applyDavinciToneMapping(in, p_TransferFunctionIn, p_TransferFunctionOut);
+    float3 filmic  = applyFilmicToneMapping(in);
+
+    // Calculate linear luminance.
+    float luminance = (0.2126f * in.x) + (0.7152f * in.y) + (0.0722f * in.z);
+    // Compute perceived luminance using a gamma correction (1/2.2)
+    float perceivedLuminance = pow(luminance, 1.0f / 2.2f);
+    // Use smootherstep on the perceived luminance to compute the blend factor.
+    float blend = smootherstep(0.0f, 1.0f, perceivedLuminance);
+    
+    return _mix(davinci, filmic, blend);
+}
+
+//------------------------------------------------------------------------------
+// GAMUT COMPRESSION FUNCTIONS
+//------------------------------------------------------------------------------
+
+// Knee parameter for compression (values > 1 bring the knee down)
+#define kKnee 2.0f  // Adjust this value to control how early the knee occurs
+
+// Smoothly compresses a channel value above a threshold.
+__DEVICE__ float smoothCompress(float x, float threshold, float max_value, float knee) {
+    if (x <= threshold) return x;
+    float normalized = (x - threshold) / (max_value - threshold);
+    float compressed = threshold + (max_value - threshold) * (normalized / (1.0f + knee * normalized));
+    return compressed;
+}
+
+// Calculates adaptive parameters for gamut compression based on luminance and chroma.
+__DEVICE__ void calculateCompressionParams(float3 in, __PRIVATE__ float* threshold, __PRIVATE__ float* strength) {
     float max_rgb = max(in.x, max(in.y, in.z));
-    float min_rgb = min(in.x, min(in.y, in.z));
-    return (max_rgb - min_rgb) / max_rgb;
+    float chroma = max_rgb - min(in.x, min(in.y, in.z));
+    float luminance = (0.2126f * in.x) + (0.7152f * in.y) + (0.0722f * in.z);
+
+    *threshold = 0.5f + 0.3f * smootherstep(0.1f, 0.9f, luminance);
+    *strength = 0.5f + 0.5f * smootherstep(0.2f, 0.8f, chroma / max_rgb);
 }
 
-// Main blending function
-__DEVICE__ float3 blendToneMappings(float3 in, int toneMappingOption, int p_TransferFunctionIn, int p_TransferFunctionOut) {
-    // Calculate saturation from linear input
-    float saturation = calculateSaturation(in);
-
-    // Apply Reinhard tone mapping
-    float3 reinhard = applyReinhardToneMapping(in);
-
-    // Apply selected tone mapping
-    float3 selectedToneMapped;
-    if (toneMappingOption == toneMapACESOption) {
-        selectedToneMapped = applyAcesToneMapping(in);
-    } else if (toneMappingOption == toneMapDavinciOption) {
-        selectedToneMapped = applyDavinciToneMapping(in, p_TransferFunctionIn, p_TransferFunctionOut);
-    } else if (toneMappingOption == toneMapFilmicOption) {
-        selectedToneMapped = applyFilmicToneMapping(in);
-    } else if (toneMappingOption == toneMapReinhardOption) {
-        return reinhard; // Only Reinhard tone mapping
-    } else if (toneMappingOption == toneMapNone) {
-        return in; // No tone mapping
-    } else if (toneMappingOption == toneMapDavinciHybridOption) {
-        // Hybrid (DaVinci + Reinhard)
-        selectedToneMapped = applyDavinciToneMapping(in, p_TransferFunctionIn, p_TransferFunctionOut);
-    } else if (toneMappingOption == toneMapFilmicHybridOption) {
-        // Hybrid Filmic (Filmic + Reinhard)
-        selectedToneMapped = applyFilmicToneMapping(in);
-    } else if (toneMappingOption == toneMapAcesHybridOption) {
-        // Hybrid ACES (ACES + Reinhard)
-        selectedToneMapped = applyAcesToneMapping(in);
-    } else {
-        selectedToneMapped = in; // Default to input if not matched
-    }
-
-    // Blend between Reinhard and selected tone mapping based on saturation
-    float3 blended;
-    float reinhard_factor = smoothstep(0.85f, 1.0f, saturation); // Only highly saturated pixels get more Reinhard tone mapping
-    blended.x = reinhard.x * reinhard_factor + selectedToneMapped.x * (1.0f - reinhard_factor);
-    blended.y = reinhard.y * reinhard_factor + selectedToneMapped.y * (1.0f - reinhard_factor);
-    blended.z = reinhard.z * reinhard_factor + selectedToneMapped.z * (1.0f - reinhard_factor);
-
-    return blended;
-}
-
-// Smoothstep function for smooth transition
-__DEVICE__ float smoothstep(float edge0, float edge1, float x) {
-    x = clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
-    return x * x * (3 - 2 * x);
-}
-
-
-// Gamut Compression Functions
-
-__DEVICE__ float smoothStep(float edge0, float edge1, float x) {
-    x = clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
-    return x * x * (3 - 2 * x);
-}
-
-__DEVICE__ float compressValue(float x, float t, float s, float p) {
-    if (x > t) {
-        float normalized = (x - t) / s;
-        float compressed = t + s * normalized / pow(1.0f + pow(normalized, p), 1.0f / p);
-        return compressed;
-    }
-    return x;
-}
-
+// Applies gamut compression to the input color.
 __DEVICE__ float3 compressGamut(float3 in) {
-    float threshold = 0.0f;
-    float max_distance_r = 1.0;
-    float max_distance_g = 1.0f;
-    float max_distance_b = 1.0f;
-    float aggressiveness = 0.5f;
-    float luminance_strength = 1.0f;
-    // Calculate chroma (distance from achromatic axis)
+    float threshold, strength;
+    calculateCompressionParams(in, &threshold, &strength);
+
+    float luminance = (0.2126f * in.x) + (0.7152f * in.y) + (0.0722f * in.z);
     float max_rgb = max(in.x, max(in.y, in.z));
     float min_rgb = min(in.x, min(in.y, in.z));
     float chroma = max_rgb - min_rgb;
-
-    // Determine achromatic component
-    float achromatic = (in.x + in.y + in.z) / 3.0f;
-
-    // Calculate the distances
-    float distance_r = in.x - achromatic;
-    float distance_g = in.y - achromatic;
-    float distance_b = in.z - achromatic;
-
-    // Compress distances using the provided compression function
-    distance_r = compressValue(distance_r, threshold, max_distance_r - threshold, aggressiveness);
-    distance_g = compressValue(distance_g, threshold, max_distance_g - threshold, aggressiveness);
-    distance_b = compressValue(distance_b, threshold, max_distance_b - threshold, aggressiveness);
-
-    // Adjust the luminance compression strength
-    float compressed_achromatic = achromatic + luminance_strength * (min_rgb + chroma / 2.0f - achromatic);
-
-    // Reconstruct the RGB components from the compressed distances
-    float3 compressed_rgb;
-    compressed_rgb.x = compressed_achromatic + distance_r;
-    compressed_rgb.y = compressed_achromatic + distance_g;
-    compressed_rgb.z = compressed_achromatic + distance_b;
-
-    // Apply smooth transition using manual interpolation
-    float transition = smoothStep(threshold, max_distance_r, chroma);
-    float3 out;
-    out.x = in.x * (1.0f - transition) + compressed_rgb.x * transition;
-    out.y = in.y * (1.0f - transition) + compressed_rgb.y * transition;
-    out.z = in.z * (1.0f - transition) + compressed_rgb.z * transition;
-
-    return out;
+    
+    if (chroma < 1e-6f) return in;
+    
+    float sum_rgb = in.x + in.y + in.z;
+    float3 chromaticity;
+    chromaticity.x = in.x / sum_rgb;
+    chromaticity.y = in.y / sum_rgb;
+    chromaticity.z = in.z / sum_rgb;
+    
+    float3 compressed;
+    compressed.x = smoothCompress(chromaticity.x, threshold, 1.0f, kKnee);
+    compressed.y = smoothCompress(chromaticity.y, threshold, 1.0f, kKnee);
+    compressed.z = smoothCompress(chromaticity.z, threshold, 1.0f, kKnee);
+    
+    float sum_compressed = compressed.x + compressed.y + compressed.z;
+    compressed.x /= sum_compressed;
+    compressed.y /= sum_compressed;
+    compressed.z /= sum_compressed;
+    
+    float blend = smootherstep(0.0f, 1.0f, strength);
+    float3 result;
+    result.x = _mix(chromaticity.x, compressed.x, blend);
+    result.y = _mix(chromaticity.y, compressed.y, blend);
+    result.z = _mix(chromaticity.z, compressed.z, blend);
+    
+    result.x *= sum_rgb;
+    result.y *= sum_rgb;
+    result.z *= sum_rgb;
+    
+    float new_luma = (0.2126f * result.x) + (0.7152f * result.y) + (0.0722f * result.z);
+    float luma_scale = luminance / new_luma;
+    result.x *= luma_scale;
+    result.y *= luma_scale;
+    result.z *= luma_scale;
+    
+    float max_result = max(result.x, max(result.y, result.z));
+    if (max_result > 1.0f) {
+        result.x /= max_result;
+        result.y /= max_result;
+        result.z /= max_result;
+    }
+    
+    result.x = clamp(result.x, 0.0f, 1.0f);
+    result.y = clamp(result.y, 0.0f, 1.0f);
+    result.z = clamp(result.z, 0.0f, 1.0f);
+    
+    return result;
 }
 
+// ACES Style Gamut Compression Function 
 
-// Helper Functions
+// Helper function to compress a single channel.
+__DEVICE__ float compressChannel(float c, float T, float beta, float p) {
+    // If c exceeds the threshold, compress it; otherwise, return c unchanged.
+    return (c > T) ? T + (c - T) / (1.0f + beta * _powf(c - T, p)) : c;
+}
 
-//Transfer function convertion
+// Main gamut compression function.
+__DEVICE__ float3 compressGamutACES(float3 in) {
+    // Calculate the total sum of the RGB channels.
+    float sum_rgb = in.x + in.y + in.z;
+    if (sum_rgb < 1e-6f) return in;  // Avoid division by zero.
+    
+    // Compute normalized chromaticity.
+    float3 chroma;
+    chroma.x = in.x / sum_rgb;
+    chroma.y = in.y / sum_rgb;
+    chroma.z = in.z / sum_rgb;
+    
+    // Parameters for the compression function (tweak as needed)
+    const float T = 0.5f;     // Threshold: values below this are left unchanged.
+    const float beta = 3.0f;  // Strength of compression.
+    const float p = 0.5f;     // Exponent controlling the curvature.
+    
+    // Compress each channel if it exceeds the threshold.
+    float3 comp;
+    comp.x = compressChannel(chroma.x, T, beta, p);
+    comp.y = compressChannel(chroma.y, T, beta, p);
+    comp.z = compressChannel(chroma.z, T, beta, p);
+    
+    // Normalize the compressed chromaticity so that the sum is 1.
+    float sum_comp = comp.x + comp.y + comp.z;
+    comp.x /= sum_comp;
+    comp.y /= sum_comp;
+    comp.z /= sum_comp;
+    
+    // Reassemble the final color by scaling by the original sum.
+    float3 result = comp * sum_rgb;
+    return result;
+}
+
+//------------------------------------------------------------------------------
+// HELPER FUNCTIONS: TRANSFER & COLORSPACE CONVERSIONS
+//------------------------------------------------------------------------------
+
+// Converts from the encoded transfer function to linear.
 __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
     if (transferFunc == acesCCIn) return logToLinACEScc(in);
     if (transferFunc == acesCCTIn) return logToLinACEScct(in);
@@ -260,6 +294,7 @@ __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
     if (transferFunc == fLogIn) return logToLinFLog(in);
     if (transferFunc == fLog2In) return logToLinFLog2(in);
     if (transferFunc == goproProtuneIn) return logToLinProtune(in);
+    if (transferFunc == linearIn) return linear(in);
     if (transferFunc == leicaLogIn) return logToLinLeicaLog(in);
     if (transferFunc == nLogIn) return logToLinNLog(in);
     if (transferFunc == rec709In) return logToLinRec709(in);
@@ -271,9 +306,10 @@ __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
     if (transferFunc == st2084PQIn) return logToLinPQ(in);
     if (transferFunc == vLogIn) return logToLinVLog(in);
     if (transferFunc == davinciIntermediateIn) return logToLinDavinciIntermediate(in);
-    return in; // Default case, return input as-is
+    return in; // Default: return input as-is.
 }
 
+// Converts from linear to the encoded transfer function.
 __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
     if (transferFunc == acesCCOut) return linToLogACEScc(in);
     if (transferFunc == acesCCTOut) return linToLogACEScct(in);
@@ -290,6 +326,7 @@ __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
     if (transferFunc == fLogOut) return linToLogFLog(in);
     if (transferFunc == fLog2Out) return linToLogFLog2(in);
     if (transferFunc == goproProtuneOut) return linToLogProtune(in);
+    if (transferFunc == linearOut) return linear(in);
     if (transferFunc == leicaLogOut) return linToLogLeicaLog(in);
     if (transferFunc == nLogOut) return linToLogNLog(in);
     if (transferFunc == rec709Out) return linToLogRec709(in);
@@ -301,12 +338,12 @@ __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
     if (transferFunc == st2084PQOut) return linToLogPQ(in);
     if (transferFunc == vLogOut) return linToLogVLog(in);
     if (transferFunc == davinciIntermediateOut) return linToLogDavinciIntermediate(in);
-    return in; // Default case, return input as-is
+    return in; // Default: return input as-is.
 }
 
-
-// Colorspace Conversion
+// Converts input colorspace to XYZ.
 __DEVICE__ float3 convertColorspaceToXYZ(float3 in, int colorspaceIn) {
+    if (colorspaceIn == ACES_2065In) return ACES2065toXYZ(in);
     if (colorspaceIn == ACES_CGIn) return ACES_CGtoXYZ(in);
     if (colorspaceIn == ACES_CCTIn) return ACES_CCTtoXYZ(in);
     if (colorspaceIn == AppleLogIn) return AppleLogtoXYZ(in);
@@ -328,11 +365,13 @@ __DEVICE__ float3 convertColorspaceToXYZ(float3 in, int colorspaceIn) {
     if (colorspaceIn == Rec709In) return Rec709toXYZ(in);
     if (colorspaceIn == Rec2020In) return Rec2020toXYZ(in);
     if (colorspaceIn == DCIP3In) return DCIP3toXYZ(in);
-    return in; // Default case, return input as-is
+    return in; // Default: return input as-is.
 }
 
+// Converts XYZ to the output colorspace.
 __DEVICE__ float3 convertXYZToColorspace(float3 in, int colorspaceOut) {
-   if (colorspaceOut == ACES_CGOut) return XYZtoACES_CG(in);
+    if (colorspaceOut == ACES_2065Out) return XYZtoACES2065(in);
+    if (colorspaceOut == ACES_CGOut) return XYZtoACES_CG(in);
     if (colorspaceOut == ACES_CCTOut) return XYZtoACES_CCT(in);
     if (colorspaceOut == AppleLogOut) return XYZtoAppleLog(in);
     if (colorspaceOut == ArriWideGamut3Out) return XYZtoArriWideGamut3(in);
@@ -353,51 +392,60 @@ __DEVICE__ float3 convertXYZToColorspace(float3 in, int colorspaceOut) {
     if (colorspaceOut == Rec709Out) return XYZtoRec709(in);
     if (colorspaceOut == Rec2020Out) return XYZtoRec2020(in);
     if (colorspaceOut == DCIP3Out) return XYZtoDCIP3(in);
-    return in; // Default case, return input as-is
+    return in; // Default: return input as-is.
 }
 
+//------------------------------------------------------------------------------
+// MAIN FUNCTION
+//------------------------------------------------------------------------------
 
-// Main Function
+// The main transform function: converts from the encoded transfer function
+// to linear, applies the selected tone mapping, performs colorspace conversion,
+// optional gamut compression, and converts back to the encoded transfer function.
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 out = make_float3(p_R, p_G, p_B);
-    // Convert from the encoded Transfer Function to linear
+
+    // Convert from the encoded transfer function to linear.
     out = convertToLinear(out, p_TransferFunctionIn);
-    
 
-// Apply tone mapping if enabled
-if (p_ToneMapping == toneMapACESOption) {
-    out = applyAcesToneMapping(out);
-} else if (p_ToneMapping == toneMapDavinciOption) {
-    out = applyDavinciToneMapping(out, p_TransferFunctionIn, p_TransferFunctionOut);
-} else if (p_ToneMapping == toneMapFilmicOption) {
-    out = applyFilmicToneMapping(out);
-} else if (p_ToneMapping == toneMapReinhardOption) {
-    out = applyReinhardToneMapping(out);
-} else if (p_ToneMapping == toneMapDavinciHybridOption) {
-    out = blendToneMappings(out, p_ToneMapping, p_TransferFunctionIn, p_TransferFunctionOut);
-} else if (p_ToneMapping == toneMapFilmicHybridOption) {
-    out = blendToneMappings(out, p_ToneMapping, p_TransferFunctionIn, p_TransferFunctionOut);
-} else if (p_ToneMapping == toneMapAcesHybridOption) {
-    out = blendToneMappings(out, p_ToneMapping, p_TransferFunctionIn, p_TransferFunctionOut);
-}
+    // Apply tone mapping based on the selected option.
+    switch(p_ToneMapping) {
+        case toneMapACESOption:
+            out = applyAcesToneMapping(out);
+            break;
+        case toneMapDavinciOption:
+            out = applyDavinciToneMapping(out, p_TransferFunctionIn, p_TransferFunctionOut);
+            break;
+        case toneMapFilmicOption:
+            out = applyFilmicToneMapping(out);
+            break;
+        case toneMapHybirdOption:
+            out = applyHybirdToneMapping(out, p_TransferFunctionIn, p_TransferFunctionOut);
+            break;
+        case toneMapReinhardOption:
+            out = applyReinhardToneMapping(out);
+            break;
+        default:
+            // No tone mapping applied (covers toneMapNone)
+            break;
+    }
 
-    // Convert from Colorspace In to XYZ
+    // Convert from input Colorspace to XYZ.
     out = convertColorspaceToXYZ(out, p_ColorspaceIn);
 
-    // Gamut Compression
-
-if (p_gamutCompression == gamutCompSaturationPreserving) {
-    out = compressGamut(out);
-}
+    // Apply gamut compression if enabled.
+    if (p_gamutCompression == gamutCompSaturationPreserving) {
+        out = compressGamut(out);
+    }
+     if (p_gamutCompression == gamutCompACES) {
+        out = compressGamutACES(out);
+    }
     
-    // Convert from XYZ to Colorspace Out
+    // Convert from XYZ to output Colorspace.
     out = convertXYZToColorspace(out, p_ColorspaceOut);
 
-    // Convert from linear back to the encoded Transfer Function
+    // Convert from linear back to the encoded transfer function.
     out = convertToLog(out, p_TransferFunctionOut);
-
-    // Draw a green line at the bottom to indicate the DCTL is running without errors
-    //if (p_Y < 10) out = make_float3(0, 1, 0);
 
     return out;
 }
