@@ -159,19 +159,50 @@ __DEVICE__ float3 HSV_to_RGB(float3 in) {
     return out; // Return RGB color
 }
 
-// Makes powf function consistent over different OS
+//------------------------------------------------------------------------------
+// Function: powf
+// Description: Computes the power function for a float base and exponent,
+//              ensuring the sign of the base is preserved. Makes powf consistent
+//              over different O.S
+// Parameters:
+//   base - The base value.
+//   exp  - The exponent value.
+// Returns:
+//   The result of base raised to exp, preserving the sign of base.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float powf(float base, float exp) {
     return _copysignf(_powf(_fabs(base), exp), base);
 }
 
-// Bellcurve Function
+//------------------------------------------------------------------------------
+// Function: bellCurve
+// Description: Computes a Gaussian bell curve value for a given input.
+// Parameters:
+//   in     - The input value.
+//   center - The center of the bell curve.
+//   width  - The width (spread) of the bell curve.
+// Returns:
+//   The computed bell curve value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float bellCurve(float in, float center, float width) {
     float distance = _fabs(in - center);
     float exponent = -powf(distance, 2) / powf(width, 2);
     return _expf(exponent);
 }
 
-// Loops the Bellcurve Function over the entire hue range so there's no hard transition at 0 or 360
+//------------------------------------------------------------------------------
+// Function: bellCurveLooping
+// Description: Computes a looping bell curve to avoid discontinuities at the hue boundaries.
+// Parameters:
+//   in     - The input hue (normalized).
+//   center - The center of the bell curve.
+//   width  - The width of the bell curve.
+// Returns:
+//   The maximum bell curve value considering looped boundaries.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float bellCurveLooping(float in, float center, float width) {
     float curve = bellCurve(in, center, width);
     float startCurve = bellCurve(in, center - 1.0f, width);
@@ -179,55 +210,142 @@ __DEVICE__ float bellCurveLooping(float in, float center, float width) {
     return _fmaxf(_fmaxf(curve, startCurve), endCurve);
 }
 
-// Function to mix between two float values
+//------------------------------------------------------------------------------
+// Function: _mixf
+// Description: Mixes two float values based on factor t.
+// Parameters:
+//   a - The first value.
+//   b - The second value.
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated value: a * (1 - t) + b * t.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float _mixf(float a, float b, float t) {
     return a * (1.0f - t) + b * t;
 }
 
-// Function to wrap hue
+//------------------------------------------------------------------------------
+// Function: wrapHue
+// Description: Wraps a hue value to the range [0, 1].
+// Parameters:
+//   hue - The input hue value.
+// Returns:
+//   The wrapped hue value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float wrapHue(float hue) {
     return hue - _floorf(hue); // Ensure hue is in the range [0, 1]
 }
 
-// Calculates saturation
+//------------------------------------------------------------------------------
+// Function: calculate_saturation
+// Description: Calculates the saturation of an RGB color.
+// Parameters:
+//   rgb - The input RGB color as a float3.
+// Returns:
+//   The saturation value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float calculate_saturation(float3 rgb) {
     float maxVal = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
     float minVal = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
     return maxVal == 0.0f ? 0.0f : (maxVal - minVal) / maxVal;
 }
 
-// Function to mix between two float3 values with gamma adjustment for smoother blending
+//------------------------------------------------------------------------------
+// Function: _mix3
+// Description: Mixes two float3 colors with gamma adjustment for smoother blending.
+// Parameters:
+//   a - The first color (float3).
+//   b - The second color (float3).
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 _mix3(float3 a, float3 b, float t) {
     t = powf(t, 1.5); // Apply gamma to smooth the blending transition
     return a * (1.0f - t) + b * t;
 }
 
-// Function to find the maximum component in a color
+//------------------------------------------------------------------------------
+// Function: find_max_component
+// Description: Returns the maximum component (R, G, or B) of a color.
+// Parameters:
+//   color - The input color as a float3.
+// Returns:
+//   The maximum channel value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float find_max_component(float3 color) {
     return _fmaxf(_fmaxf(color.x, color.y), color.z);
 }
 
-// Function to compute the luminance of an image (used for recovery masks)
+//------------------------------------------------------------------------------
+// Function: luminance
+// Description: Computes the luminance (brightness) of an RGB color using Rec. 709 coefficients.
+// Parameters:
+//   rgb - The input RGB color as a float3.
+// Returns:
+//   The luminance value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float luminance(float3 rgb) {
-    return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z; // Rec. 709 luminance
+    return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
 }
 
-// Function to apply gamma individually to each channel
+//------------------------------------------------------------------------------
+// Function: apply_per_channel_gamma
+// Description: Applies gamma correction individually to each channel of a color.
+// Parameters:
+//   color - The input color as a float3.
+//   exp   - The gamma exponents for each channel as a float3.
+// Returns:
+//   The gamma-corrected color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 apply_per_channel_gamma(float3 color, float3 exp) {
     return make_float3(powf(color.x, exp.x), powf(color.y, exp.y), powf(color.z, exp.z));
 }
 
-// Function to compute the maximum channel value of a color
+//------------------------------------------------------------------------------
+// Function: compute_value_max_component
+// Description: Computes the maximum channel value of a color.
+// Parameters:
+//   color - The input color as a float3.
+// Returns:
+//   The maximum channel value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float compute_value_max_channel(float3 color) {
     return find_max_component(color);
 }
 
-// Function to compute the mean density of a color
+//------------------------------------------------------------------------------
+// Function: compute_density_mean
+// Description: Computes the mean (average) of the RGB components.
+// Parameters:
+//   color - The input color as a float3.
+// Returns:
+//   The average value of the components.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float compute_density_mean(float3 color) {
     return (color.x + color.y + color.z) / 3.0f;
 }
 
-// Function to calculate the shortest distance between two hues in degrees, accounting for wrap-around at 360 degrees
+//------------------------------------------------------------------------------
+// Function: hueDistanceDegrees
+// Description: Calculates the shortest distance between two hue angles (in degrees),
+//              accounting for wrap-around at 360°.
+// Parameters:
+//   hueDeg1 - The first hue angle in degrees.
+//   hueDeg2 - The second hue angle in degrees.
+// Returns:
+//   The shortest angular distance in degrees.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float hueDistanceDegrees(float hueDeg1, float hueDeg2) {
     float dist = _fabs(hueDeg1 - hueDeg2);
     if (dist > 180.0f) {
@@ -236,7 +354,17 @@ __DEVICE__ float hueDistanceDegrees(float hueDeg1, float hueDeg2) {
     return dist;
 }
 
-// Bell curve function based on hue distance with falloff width in degrees
+//------------------------------------------------------------------------------
+// Function: bellCurveFalloff
+// Description: Computes a bell curve falloff based on hue distance (in degrees) using a Gaussian function.
+// Parameters:
+//   hueDeg       - The current hue in degrees.
+//   hueCenterDeg - The center hue for the falloff in degrees.
+//   falloffWidth - The falloff width in degrees.
+// Returns:
+//   The falloff value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float bellCurveFalloff(float hueDeg, float hueCenterDeg, float falloffWidth) {
     // Ensure hueCenterDeg is within [0,360) range
     hueCenterDeg = hueCenterDeg - _floorf(hueCenterDeg / 360.0f) * 360.0f;
@@ -251,7 +379,17 @@ __DEVICE__ float bellCurveFalloff(float hueDeg, float hueCenterDeg, float fallof
     return _expf(exponent);
 }
 
-// Smoothstep falloff function based on hue distance with falloff width in degrees
+//------------------------------------------------------------------------------
+// Function: smoothstepFalloff
+// Description: Computes a smoothstep falloff based on hue distance with a given falloff width in degrees.
+// Parameters:
+//   hueDeg       - The current hue in degrees.
+//   hueCenterDeg - The center hue for the falloff in degrees.
+//   falloffWidth - The falloff width in degrees.
+// Returns:
+//   The smoothstep falloff value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float smoothstepFalloff(float hueDeg, float hueCenterDeg, float falloffWidth) {
     // Ensure hueCenterDeg is within [0,360) range
     hueCenterDeg = hueCenterDeg - _floorf(hueCenterDeg / 360.0f) * 360.0f;
@@ -267,7 +405,18 @@ __DEVICE__ float smoothstepFalloff(float hueDeg, float hueCenterDeg, float fallo
     return x * x * (3.0f - 2.0f * x);
 }
 
-// Function to compute the hue mask
+//------------------------------------------------------------------------------
+// Function: computeHueMask
+// Description: Computes a hue mask based on the hue distance from a center and a selected falloff curve.
+// Parameters:
+//   hueDeg       - The current hue in degrees.
+//   hueCenterDeg - The target hue center in degrees.
+//   falloffWidth - The falloff width in degrees.
+//   pCurveType   - The curve type selector (0 for smoothstep, otherwise bell curve).
+// Returns:
+//   The computed hue mask value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float computeHueMask(float hueDeg, float hueCenterDeg, float falloffWidth, float pCurveType) {
     if (pCurveType == 0) {
         return smoothstepFalloff(hueDeg, hueCenterDeg, falloffWidth);
@@ -279,8 +428,18 @@ __DEVICE__ float computeHueMask(float hueDeg, float hueCenterDeg, float falloffW
 //------------------------------------------------------------------------------
 // Saturation and Density Functions
 //------------------------------------------------------------------------------
+// Function: adjust_density
+// Description: Adjusts the density (brightness) of a color while preserving detail in saturated regions.
+//              It normalizes the color, applies gamma correction, and blends with the original based on a recovery mask.
+// Parameters:
+//   color         - The input RGB color as a float3.
+//   gamma         - Gamma correction factors as a float3.
+//   density_mixer - Controls the mix between the maximum channel and the average density.
+//   recovery      - Recovery factor for bright, saturated colors.
+// Returns:
+//   The density-adjusted color as a float3.
+//------------------------------------------------------------------------------
 
-// Density adjustment function with clamping
 __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer, float recovery) {
     float max_channel_value = compute_value_max_channel(color);
     float3 normalized_color = color / _fmaxf(max_channel_value, 0.00001f);
@@ -306,7 +465,16 @@ __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer
     return _mix3(adjusted_color, color, protectionStrength);
 }
 
-//Function to adjust vibrance with falloff
+//------------------------------------------------------------------------------
+// Function: adjustVibrance
+// Description: Adjusts the vibrance of a color using a logarithmic falloff approach to protect extreme values.
+// Parameters:
+//   rgb      - The input RGB color as a float3.
+//   vibrance - The vibrance adjustment factor (1.0 implies no change).
+// Returns:
+//   The vibrance-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
     vibrance -= 1.0f;
     
@@ -352,7 +520,19 @@ __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
     return newRGB;
 }
 
-// Function to adjust saturation with mask
+//------------------------------------------------------------------------------
+// Function: adjustSaturationWithMask
+// Description: Adjusts the saturation of a color using either a vibrance method or an achromatic method,
+//              then blends the result with the original color based on a mask.
+// Parameters:
+//   rgb       - The input RGB color as a float3.
+//   saturation- The saturation adjustment factor (1.0 implies no change).
+//   mask      - The mask weight (0 to 1) determining the strength of the adjustment.
+//   pMathType - Selector for math type (1 for vibrance-based, otherwise achromatic).
+// Returns:
+//   The saturation-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 adjustSaturationWithMask(float3 rgb, float saturation, float mask, int pMathType) {
     float3 newRGB;
     if (pMathType == 1) {
@@ -377,7 +557,18 @@ __DEVICE__ float3 adjustSaturationWithMask(float3 rgb, float saturation, float m
     return _mix3(rgb, newRGB, mask);
 }
 
-// Function to adjust density with mask
+//------------------------------------------------------------------------------
+// Function: adjustDensityWithMask
+// Description: Applies a density adjustment to a color and blends it with the original based on a mask.
+// Parameters:
+//   rgb             - The input RGB color as a float3.
+//   density         - The density adjustment factor.
+//   mask            - The mask weight (0 to 1) for blending.
+//   densityRecovery - Recovery factor for density.
+// Returns:
+//   The density-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 adjustDensityWithMask(float3 rgb, float density, float mask, float densityRecovery) {
     // Set gamma to (1.0, 1.0, 1.0) as a neutral adjustment
     float3 gamma = make_float3(1.0f, 1.0f, 1.0f);
@@ -386,7 +577,16 @@ __DEVICE__ float3 adjustDensityWithMask(float3 rgb, float density, float mask, f
     return _mix3(rgb, adjustedRGB, mask);
 }
 
-// Function to adjust hue rotation
+//------------------------------------------------------------------------------
+// Function: adjustHueRotation
+// Description: Rotates the hue of a color by converting RGB to HSV, applying a hue shift, then converting back.
+// Parameters:
+//   rgb      - The input RGB color as a float3.
+//   hueShift - The hue shift in degrees.
+// Returns:
+//   The hue-shifted RGB color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 adjustHueRotation(float3 rgb, float hueShift) {
     // Convert RGB to HSL
     float3 hsl = RGB_to_HSV(rgb);
@@ -412,10 +612,26 @@ __DEVICE__ float3 adjustHueRotation(float3 rgb, float hueShift) {
 }
 
 //------------------------------------------------------------------------------
-// Main Function
+// Main Transformation Function
+//------------------------------------------------------------------------------
+// Function: transform
+// Description: Main transformation function that adjusts hue-specific color properties.
+//              The process includes:
+//              1. Converting the input RGB color to HSV to obtain the hue in degrees.
+//              2. Computing individual hue masks for red, skintone, yellow, green, cyan, blue, and magenta.
+//              3. Compensating for overlap among the hue masks.
+//              4. Applying density and saturation adjustments for each hue region based on their masks.
+//              5. Combining hue shifts from all regions.
+//              6. Applying a final hue rotation if needed.
+//              7. Applying highlight and shadow recovery by blending with the original color.
+// Parameters:
+//   p_Width, p_Height - Full image dimensions.
+//   p_X, p_Y        - Pixel coordinates.
+//   p_R, p_G, p_B   - Input red, green, and blue channel values.
+// Returns:
+//   The final output color (float3) after all hue-specific adjustments.
 //------------------------------------------------------------------------------
 
-// Main transformation function with masks calculated on the input image
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 originalRGB = make_float3(p_R, p_G, p_B);
     float3 adjustedRGB = originalRGB;
