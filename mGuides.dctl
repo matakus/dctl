@@ -5,7 +5,6 @@
 // Description: Renders guide elements Rule of Thirds, Golden Ratio, Golden Spiral,
 // Crosshair on-screen with adjustable opacity, color, and visibility.
 
-
 //------------------------------------------------------------------------------
 // UI PARAMETERS
 //------------------------------------------------------------------------------
@@ -13,26 +12,35 @@
 // Aspect Ratio & Opacity Controls
 DEFINE_UI_PARAMS(aspectRatio, Aspect Ratio X:1, DCTLUI_SLIDER_FLOAT, 1.78, 0.3, 4.0, 0.01)
 DEFINE_UI_TOOLTIP(Aspect Ratio X:1, "Adjusts input aspect ratio")
+
 DEFINE_UI_PARAMS(ruleOfThirdsOpacity, Rule of Thirds Opacity, DCTLUI_SLIDER_FLOAT, 0.4, 0, 1, 0.1)
 DEFINE_UI_TOOLTIP(Rule of Thirds Opacity, "Adjusts the opacity of the Rule of Thirds guide.")
+
 DEFINE_UI_PARAMS(ruleOfThirdsCenterOpacity, Center Opacity, DCTLUI_SLIDER_FLOAT, 0.1, 0, 1, 0.1)
 DEFINE_UI_TOOLTIP(Center Opacity, "Adjusts the opacity of the center highlight of the Rule of Thirds guide.")
+
 DEFINE_UI_PARAMS(crosshairOpacity, Crosshair Opacity, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1, 0.1)
 DEFINE_UI_TOOLTIP(Crosshair Opacity, "Adjusts the opacity of the crosshair.")
+
 DEFINE_UI_PARAMS(goldenRatioOpacity, Golden Ratio Opacity, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1, 0.1)
 DEFINE_UI_TOOLTIP(Golden Ratio Opacity, "Adjusts the opacity of the Golden Ratio guide.")
+
 DEFINE_UI_PARAMS(goldenSpiralOpacity, Golden Spiral Opacity, DCTLUI_SLIDER_FLOAT, 1.0, 0, 1, 0.1)
 DEFINE_UI_TOOLTIP(Golden Spiral Opacity, "Adjusts the opacity of the Golden Spiral guide.")
 
 // Color Selection Controls
 DEFINE_UI_PARAMS(colorRuleOfThirds, Rule of Thirds 🌈, DCTLUI_SLIDER_INT, 5, 0, 9, 1)
 DEFINE_UI_TOOLTIP(Rule of Thirds 🌈, "Selects the color for the Rule of Thirds guide.")
+
 DEFINE_UI_PARAMS(colorRuleOfThirdsCenter, Center 🌈, DCTLUI_SLIDER_INT, 5, 0, 9, 1)
 DEFINE_UI_TOOLTIP(Center 🌈, "Selects the color for the center highlight of the Rule of Thirds guide.")
+
 DEFINE_UI_PARAMS(colorCrosshair, Crosshair 🌈, DCTLUI_SLIDER_INT, 9, 0, 9, 1)
 DEFINE_UI_TOOLTIP(Crosshair 🌈, "Selects the color for the crosshair.")
+
 DEFINE_UI_PARAMS(colorGoldenRatio, Golden Ratio 🌈, DCTLUI_SLIDER_INT, 0, 0, 9, 1)
 DEFINE_UI_TOOLTIP(Golden Ratio 🌈, "Selects the color for the Golden Ratio guide.")
+
 DEFINE_UI_PARAMS(colorGoldenSpiral, Golden Spiral 🌈, DCTLUI_SLIDER_INT, 2, 0, 9, 1)
 DEFINE_UI_TOOLTIP(Golden Spiral 🌈, "Selects the color for the Golden Spiral guide.")
 
@@ -43,18 +51,25 @@ DEFINE_UI_TOOLTIP(Line Width, "Adjusts the thickness of the guide lines.")
 // Enable/Disable Guide Elements
 DEFINE_UI_PARAMS(enableRuleOfThirds, Enable Rule of Thirds, DCTLUI_CHECK_BOX, 1)
 DEFINE_UI_TOOLTIP(Enable Rule of Thirds, "Toggle the display of the Rule of Thirds guide.")
+
 DEFINE_UI_PARAMS(enableRuleOfThirdsCenter, Enable Rule of Thirds Center, DCTLUI_CHECK_BOX, 1)
 DEFINE_UI_TOOLTIP(Enable Rule of Thirds Center, "Toggle the display of the center highlight for the Rule of Thirds guide.")
+
 DEFINE_UI_PARAMS(enableCrosshair, Enable Crosshair, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_TOOLTIP(Enable Crosshair, "Toggle the display of the crosshair.")
+
 DEFINE_UI_PARAMS(enableGoldenRatio, Enable Golden Ratio, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_TOOLTIP(Enable Golden Ratio, "Toggle the display of the Golden Ratio guide.")
+
 DEFINE_UI_PARAMS(enableGoldenSpiral, Enable Golden Spiral, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_TOOLTIP(Enable Golden Spiral, "Toggle the display of the Golden Spiral guide.")
+
 DEFINE_UI_PARAMS(flipGoldenSpiralV, Flip Vertically, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_TOOLTIP(Flip Vertically, "Flip the Golden Spiral vertically.")
+
 DEFINE_UI_PARAMS(flipGoldenSpiralH, Flip Horizontally, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_TOOLTIP(Flip Horizontally, "Flip the Golden Spiral horizontally.")
+
 DEFINE_UI_PARAMS(rotateGoldenSpiral, Rotate 90°, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_TOOLTIP(Rotate 90°, "Rotate the Golden Spiral by 90°.")
 
