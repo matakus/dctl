@@ -1,153 +1,226 @@
-#line 2 // Debugging line
+#line 2
 
 // Saturation and Density adjustments DCTL v1.05
 // Author: Matt.C
 // Description: Adjusts Saturation and Density of an image with masks to restore detail in shadows and highlights
 
 //------------------------------------------------------------------------------
-// UI Parameters
+// UI PARAMETERS
 //------------------------------------------------------------------------------
 
-// Define user interface parameters for DCTL
-DEFINE_UI_PARAMS(saturation, Saturation, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)          // Saturation adjustment control
+DEFINE_UI_PARAMS(saturation, Saturation, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
 DEFINE_UI_TOOLTIP(Saturation, "Saturation adjustment")
 
-DEFINE_UI_PARAMS(vibrance, Vibrance, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)             // Vibrance adjustment control
+DEFINE_UI_PARAMS(vibrance, Vibrance, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
 DEFINE_UI_TOOLTIP(Vibrance, "Saturation adjustment relative to Input Saturation")
 
-DEFINE_UI_PARAMS(density, Density, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01)         // Density adjustment
+DEFINE_UI_PARAMS(density, Density, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01)
 DEFINE_UI_TOOLTIP(Density, "Adjusts overall brightness with protection for saturated highlights")
 
-DEFINE_UI_PARAMS(highlightRecovery, Highlight Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)  // Highlight recovery slider
+DEFINE_UI_PARAMS(highlightRecovery, Highlight Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_TOOLTIP(Highlight Recovery, "Preserves original values in the highlights")
 
-DEFINE_UI_PARAMS(shadowRecovery, Shadow Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)       // Shadow recovery slider
+DEFINE_UI_PARAMS(shadowRecovery, Shadow Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_TOOLTIP(Shadow Recovery, "Preserves original values in the shadows")
 
-DEFINE_UI_PARAMS(densityFeather, Density Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)  // Density Recovery slider
+DEFINE_UI_PARAMS(densityFeather, Density Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_TOOLTIP(Density Recovery, "Preserves original values in bright, saturated areas")
 
-DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)                           // Checkbox to toggle viewing of the combined mask
+DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)
 
 //------------------------------------------------------------------------------
-// Reference Values
+// REFERENCE VALUES
 //------------------------------------------------------------------------------
 
-#define EPSILON 1e-6f  // Define epsilon for floating-point comparisons
+#define EPSILON 1e-6f  // Small value to prevent division-by-zero errors
 
 //------------------------------------------------------------------------------
-// Helper Functions
+// HELPER FUNCTIONS
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// Function: powf
+// Description: Computes the power function for a float base and exponent,
+//              ensuring that the sign of the base is preserved.
+// Parameters:
+//   base - The base value.
+//   exp  - The exponent value.
+// Returns:
+//   The result of raising base to the power exp, preserving the base's sign.
 //------------------------------------------------------------------------------
 
-// Makes powf consistent over different OS
 __DEVICE__ float powf(float base, float exp) {
     return _copysignf(_powf(_fabs(base), exp), base);
 }
 
-// Function to calculate the luminance (brightness) of the image as the average of the RGB channels
+//------------------------------------------------------------------------------
+// Function: luminance
+// Description: Computes the luminance (perceived brightness) of an RGB color.
+//              Uses Rec. 709 coefficients.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float luminance(float3 rgb) {
     return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
 }
 
-// Calculates saturation
+//------------------------------------------------------------------------------
+// Function: calculate_saturation
+// Description: Calculates the saturation of an RGB color.
+//              Saturation is defined as the difference between the maximum and minimum
+//              channel values normalized by the maximum value.
+// Parameters:
+//   rgb - The input color as a float3 (R, G, B).
+// Returns:
+//   The saturation level (returns 0.0 if the color is black).
+//------------------------------------------------------------------------------
 __DEVICE__ float calculate_saturation(float3 rgb) {
     float maxVal = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
     float minVal = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
     return maxVal == 0.0f ? 0.0f : (maxVal - minVal) / maxVal;
 }
 
-// Function to find the maximum component in a color
+//------------------------------------------------------------------------------
+// Function: find_max_component
+// Description: Finds the maximum component value (R, G, or B) from an RGB color.
+// Parameters:
+//   color - The input color as a float3 (R, G, B).
+// Returns:
+//   The maximum of the R, G, and B values.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float find_max_component(float3 color) {
     return _fmaxf(_fmaxf(color.x, color.y), color.z);
 }
 
-// Function to apply gamma individually to each channel
+//------------------------------------------------------------------------------
+// Function: apply_per_channel_gamma
+// Description: Applies per-channel gamma correction to an RGB color.
+// Parameters:
+//   color - The input color as a float3 (R, G, B).
+//   exp   - The gamma exponent values as a float3 for each channel.
+// Returns:
+//   The gamma-corrected color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 apply_per_channel_gamma(float3 color, float3 exp) {
     return make_float3(powf(color.x, exp.x), powf(color.y, exp.y), powf(color.z, exp.z));
 }
 
-// Function to compute the maximum channel value of a color
-__DEVICE__ float compute_value_max_channel(float3 color) {
+//------------------------------------------------------------------------------
+// Function: compute_value_max_component
+// Description: Computes the maximum channel value of an RGB color.
+// Parameters:
+//   color - The input color as a float3 (R, G, B).
+// Returns:
+//   The maximum value among the color's components.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float compute_value_max_component(float3 color) {
     return find_max_component(color);
 }
 
-// Function to compute the mean density of a color
+//------------------------------------------------------------------------------
+// Function: compute_density_mean
+// Description: Computes the mean of the RGB components, serving as an indicator of overall density.
+// Parameters:
+//   rgb - The input color as a float3 (R, G, B).
+// Returns:
+//   The average of the R, G, and B values.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float compute_density_mean(float3 rgb) {
     return (rgb.x + rgb.y + rgb.z) / 3.0;
 }
 
 //------------------------------------------------------------------------------
-// Saturation and Density Functions
+// SATURATION AND DENSITY FUNCTIONS
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// Function: adjust_density
+// Description: Adjusts the density (brightness) of a color while preserving detail in saturated highlights.
+//              The process includes normalizing the color, applying gamma correction, and blending the
+//              adjusted color with the original based on a recovery mask.
+// Parameters:
+//   color         - The input color as a float3 (R, G, B).
+//   gamma         - Gamma correction factors as a float3.
+//   density_mixer - Controls the mix between maximum channel value and average density.
+//   feather       - Controls the strength of recovery (feathering) for bright, saturated areas.
+// Returns:
+//   The density-adjusted color as a float3.
 //------------------------------------------------------------------------------
 
-// Density Function with clamping to prevent negative values
 __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer, float feather) {
-    float max_channel_value = compute_value_max_channel(color);
+    float max_channel_value = compute_value_max_component(color);
     float3 normalized_color = color / _fmaxf(max_channel_value, 0.00001f);
 
     float density = compute_density_mean(color);
     density = _mix(_fmaxf(max_channel_value, 0.0f), _fmaxf(density, 0.0f), density_mixer - 1.0);
 
-    // Calculate recovery mask for bright, saturated colors
     float sat = calculate_saturation(color);
     float recoveryMask = max_channel_value * sat;
     
-    // Protection strength now starts at 0 when feather is 0
     float protectionStrength = feather * _fminf(recoveryMask, 1.0f);
 
-    // Apply per-channel gamma and create density-adjusted color
     float3 adjusted_color = apply_per_channel_gamma(normalized_color, gamma);
     adjusted_color.x = _fmaxf(adjusted_color.x * density, 0.0f);
     adjusted_color.y = _fmaxf(adjusted_color.y * density, 0.0f);
     adjusted_color.z = _fmaxf(adjusted_color.z * density, 0.0f);
 
-    // Mix between adjusted and original - protect bright saturated colors
     return _mix(adjusted_color, color, protectionStrength);
 }
 
+//------------------------------------------------------------------------------
+// Function: adjustSaturation
+// Description: Adjusts the saturation of an RGB color.
+//              Computes an achromatic value (the maximum channel), determines the distance of each channel
+//              from this value, and adjusts that distance based on the saturation parameter.
+// Parameters:
+//   rgb - The input color as a float3 (R, G, B).
+//   sat - The saturation adjustment factor (1.0 implies no change).
+// Returns:
+//   The saturation-adjusted color as a float3.
+//------------------------------------------------------------------------------
 
-// Adjust saturation function based on achromatic distance
 __DEVICE__ float3 adjustSaturation(float3 rgb, float sat) {
-    sat -= 1.0f; // Offset saturation slider for adjustment
+    sat -= 1.0f; // Offset: 1.0 means no adjustment
 
-    // Get the maximum channel value (achromatic color)
-    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));                                  
+    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
     float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
     distance *= (1.0f + sat);
 
-    // Compute new RGB values based on saturation adjustment
     float3 newRGB = ach - distance * _fabs(ach);
 
     return newRGB;
 }
 
-//Function to adjust vibrance with falloff
+//------------------------------------------------------------------------------
+// Function: adjustVibrance
+// Description: Adjusts the vibrance of an RGB color using a falloff effect based on current saturation.
+//              This function uses a logarithmic approach to achieve a subtler saturation adjustment that
+//              protects extreme values.
+// Parameters:
+//   rgb      - The input color as a float3 (R, G, B).
+//   vibrance - The vibrance adjustment factor (1.0 implies no change).
+// Returns:
+//   The vibrance-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
     vibrance -= 1.0f;
     
-    // Get the maximum and minimum RGB channel values
     float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
     float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
-    
-    // Add small epsilon to prevent division by zero
     float safeDivisor = _fmaxf(ach, EPSILON);
     
-    // Calculate current saturation level with protection against very small values
     float currentSaturation = (ach - minColor) / safeDivisor;
-    
-    // Ensure currentSaturation is in valid range [0,1]
     currentSaturation = _fmaxf(0.0f, _fminf(1.0f, currentSaturation));
     
     float smoothFactor = 0.1f;
-    
-    // Protect log calculation from negative or zero values
     float safeLogInput = _fmaxf(1.0f + currentSaturation, EPSILON);
     
     float adjustedVibranceEffect = vibrance > 0 ?
         1.0f + (1.0f - currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput))) * vibrance :
         1.0f + currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput)) * vibrance;
     
-    // Compute distance with protection against division by zero
     float3 distance;
     if (ach < EPSILON) {
         distance = make_float3(0.0f, 0.0f, 0.0f);
@@ -157,7 +230,6 @@ __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
     
     distance *= adjustedVibranceEffect;
     
-    // Calculate new RGB values with protected multiplication
     float3 newRGB;
     float safeAch = _fmaxf(ach, EPSILON);
     newRGB.x = _fmaxf(_fminf(ach - distance.x * safeAch, 1.0f), 0.0f);
@@ -168,39 +240,51 @@ __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
 }
 
 //------------------------------------------------------------------------------
-// Main Function
+// MAIN TRANSFORMATION FUNCTION
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// Function: transform
+// Description: Main image transformation function that adjusts saturation and density.
+//              The process includes:
+//              1. Applying density adjustment to modify overall brightness while protecting saturated highlights.
+//              2. Applying vibrance adjustment for subtle saturation control.
+//              3. Adjusting the saturation of the image.
+//              4. Computing masks for highlight, shadow, and density recovery.
+//              5. Blending the adjusted color with the original based on the computed mask.
+// Parameters:
+//   p_Width, p_Height - Full image dimensions.
+//   p_X, p_Y        - Pixel coordinates.
+//   p_R, p_G, p_B   - Input red, green, and blue channel values.
+// Returns:
+//   The final adjusted color (float3) after applying density, vibrance, and saturation adjustments.
 //------------------------------------------------------------------------------
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 rgb = make_float3(p_R, p_G, p_B);
 
-    // Apply Density adjustment
+    // Step 1: Apply Density Adjustment
     float3 densityAdjustedRGB = adjust_density(rgb, make_float3(1.0, 1.0, 1.0), density, densityFeather);
 
-    // Apply Vibrance adjustment
+    // Step 2: Apply Vibrance Adjustment
     float3 vibranceAdjustedRGB = adjustVibrance(densityAdjustedRGB, vibrance);
 
-    // Apply Saturation adjustment
+    // Step 3: Apply Saturation Adjustment
     float3 adjustedRGB = adjustSaturation(vibranceAdjustedRGB, saturation);
     
-    // Calculate luminance of the original image for highlight/shadow recovery
+    // Compute masks for highlight, shadow, and density recovery.
     float luma = luminance(rgb);
-
-    // Compute mask strengths for highlight and shadow recovery
     float highlightMaskStrength = luma * highlightRecovery;
     float shadowMaskStrength = (1.0f - luma) * shadowRecovery;
-
-    // Calculate density recovery mask
+    
     float sat = calculate_saturation(rgb);
-    float densityFeatherMask = densityFeather * _fminf(compute_value_max_channel(rgb) * sat, 1.0f);
-
-    // Combine all masks, ensuring the value doesn't exceed 1
+    float densityFeatherMask = densityFeather * _fminf(compute_value_max_component(rgb) * sat, 1.0f);
+    
     float combinedMask = _fminf(highlightMaskStrength + shadowMaskStrength + densityFeatherMask, 1.0f);
-
-    // Blend the original and adjusted RGB values using the combined mask
+    
+    // Blend the adjusted color with the original based on the combined mask.
     float3 outRGB = adjustedRGB * (1.0f - combinedMask) + rgb * combinedMask;
 
-    // Show the combined mask if enabled
+    // Optionally, if the "View Mask" checkbox is enabled, output the mask as a grayscale image.
     if (showMask) {
         return make_float3(combinedMask, combinedMask, combinedMask);
     }
