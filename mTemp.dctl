@@ -2,49 +2,58 @@
 
 // Color Temperature Adjustment DCTL v1.05
 // Author: Matt.C
-// Description: Adjusts color temperature based on Black Body Radiator model with support
-// for multiple color spaces and transfer functions
+// Description: Adjusts color temperature based on the Black Body Radiator model,
+// supporting multiple color spaces and transfer functions.
 
 #include "zCCTF.dctl"
 
 //------------------------------------------------------------------------------
-// UI Parameters
+// UI PARAMETERS
 //------------------------------------------------------------------------------
 
 // Temperature Controls
-DEFINE_UI_PARAMS(p_InputTemperature, Source Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0)
-DEFINE_UI_TOOLTIP(Source Kelvin, "Source Temperture in Kelvin")
-DEFINE_UI_PARAMS(p_Temperature, Target Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0)
-DEFINE_UI_TOOLTIP(Target Kelvin, "Target Temperture in Kelvin")
-DEFINE_UI_PARAMS(p_Tint, Tint - Green / Magenta, DCTLUI_SLIDER_FLOAT, 0.0, -150.0, 150.0, 1.0)
-DEFINE_UI_TOOLTIP(Tint - Green / Magenta, "Add or subtract green or magenta to the image")
+DEFINE_UI_PARAMS(p_InputTemperature, Source Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0);
+DEFINE_UI_TOOLTIP(Source Kelvin, "Source Temperature in Kelvin");
+
+DEFINE_UI_PARAMS(p_Temperature, Target Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0);
+DEFINE_UI_TOOLTIP(Target Kelvin, "Target Temperature in Kelvin");
+
+DEFINE_UI_PARAMS(p_Tint, Tint - Green / Magenta, DCTLUI_SLIDER_FLOAT, 0.0, -150.0, 150.0, 1.0);
+DEFINE_UI_TOOLTIP(Tint - Green / Magenta, "Add or subtract green/magenta to the image");
 
 // Mode Selection
-DEFINE_UI_PARAMS(p_Mode, White Balance Mode, DCTLUI_COMBO_BOX, 0, {Temperature, Custom, Average}, {Temperature Based, Custom White Balance, Auto Average (Slow)})
-DEFINE_UI_TOOLTIP(White Balance Mode, "Method used to adjust the white balance")
+DEFINE_UI_PARAMS(p_Mode, White Balance Mode, DCTLUI_COMBO_BOX, 0, {Temperature, Custom, Average}, {Temperature Based, Custom White Balance, Auto Average (Slow)});
+DEFINE_UI_TOOLTIP(White Balance Mode, "Method used to adjust the white balance");
 
 // Sampling Parameters
-DEFINE_UI_PARAMS(sample_block_size, Sample Block Size, DCTLUI_SLIDER_INT, 32, 32, 256, 32)
-DEFINE_UI_TOOLTIP(Sample Block Size, "Sizes of the blocks used for averaging")
-DEFINE_UI_PARAMS(p_ShowAvgBox, Show Input Average, DCTLUI_CHECK_BOX, 0)
-DEFINE_UI_TOOLTIP(Show Input Average, "Shows the average color of the input image based on the Sample Block Size"))
+DEFINE_UI_PARAMS(sample_block_size, Sample Block Size, DCTLUI_SLIDER_INT, 32, 32, 256, 32);
+DEFINE_UI_TOOLTIP(Sample Block Size, "Sizes of the blocks used for averaging");
+
+DEFINE_UI_PARAMS(p_ShowAvgBox, Show Input Average, DCTLUI_CHECK_BOX, 0);
+DEFINE_UI_TOOLTIP(Show Input Average, "Shows the average color of the input image based on the sample block size");
 
 // Color Space Selection
-DEFINE_UI_PARAMS(p_SourceInput, Source Input, DCTLUI_COMBO_BOX, 10, {Aces2065, AcesCCT_AP1, AcesCG_AP1, AppleLog_Rec2020, ArriLogC3_AWG3, ArriLogC4_AWG4, BlackmagicFilmGen5_BMWideGamut, CanonLog2_CanonCinemaGamut, CanonLog3_CanonCinemaGamut, DaVinciIntermediate_DWG, DJI_DLog_DGamut, FilmlightTLog_EGamut, FujiFLog_FGamut, FujiFLog2_FGamut, GoProProtune_GoProGamut, LeicaLLog_Rec2020, PanasonicVLog_VGamut, RedLog3G10_RWG, SonySLog2_SGamut, SonySLog3_SGamut, SonySLog3_SGamutCine, SonySLog3_SGamutVenice, SonySLog3_SGamutVeniceCine}, {Aces2065-1 (AP0) / Linear, Aces CCT (AP1), Aces CG (AP1), Apple Log / Rec2020, Arri LogC3 / AWG3, Arri LogC4 / AWG4, Blackmagic Film Gen5 / BM Wide Gamut, Canon Log 2 / Canon Cinema Gamut, Canon Log 3 / Canon Cinema Gamut, DaVinci Intermediate / DWG, DJI D-Log / D-Gamut, Filmlight T-Log / E-Gamut, Fuji F-Log / F-Gamut, Fuji F-Log2 / F-Gamut, GoPro Protune / GoPro Gamut, Leica L-Log / Rec2020, Panasonic V-Log / V-Gamut, Red Log3G10 / RWG, Sony S-Log2 / S-Gamut 3, Sony S-Log3 / S-Gamut 3, Sony S-Log3 / S-Gamut 3.Cine, Sony S-Log3 / S-Gamut 3 Venice, Sony S-Log3 / S-Gamut 3.Cine Venice})
-DEFINE_UI_TOOLTIP(Source Input, "Source Input Color Space and Transfer Function")
+DEFINE_UI_PARAMS(p_SourceInput, Source Input, DCTLUI_COMBO_BOX, 9, {Aces2065, AcesCCT_AP1, AcesCG_AP1, AppleLog_Rec2020, ArriLogC3_AWG3, ArriLogC4_AWG4, BlackmagicFilmGen5_BMWideGamut, CanonLog2_CanonCinemaGamut, CanonLog3_CanonCinemaGamut, DaVinciIntermediate_DWG, DJI_DLog_DGamut, FilmlightTLog_EGamut, FujiFLog_FGamut, FujiFLog2_FGamut, GoProProtune_GoProGamut, LeicaLLog_Rec2020, PanasonicVLog_VGamut, RedLog3G10_RWG, SonySLog2_SGamut, SonySLog3_SGamut, SonySLog3_SGamutCine, SonySLog3_SGamutVenice, SonySLog3_SGamutVeniceCine}, {Aces2065-1 (AP0), Aces CCT (AP1), Aces CG (AP1), Apple Log / Rec2020, Arri LogC3 / AWG3, Arri LogC4 / AWG4, Blackmagic Film Gen5 / BM Wide Gamut, Canon Log 2 / Canon Cinema Gamut, Canon Log 3 / Canon Cinema Gamut, DaVinci Intermediate / DWG, DJI D-Log / D-Gamut, Filmlight T-Log / E-Gamut, Fuji F-Log / F-Gamut, Fuji F-Log2 / F-Gamut, GoPro Protune / GoPro Gamut, Leica L-Log / Rec2020, Panasonic V-Log / V-Gamut, Red Log3G10 / RWG, Sony S-Log2 / S-Gamut 3, Sony S-Log3 / S-Gamut 3, Sony S-Log3 / S-Gamut 3.Cine, Sony S-Log3 / S-Gamut 3 Venice, Sony S-Log3 / S-Gamut 3.Cine Venice});
+DEFINE_UI_TOOLTIP(Source Input, "Source Input Color Space and Transfer Function");
 
 // Custom White Balance Color Picker
-DEFINE_UI_PARAMS(tgtColor, Custom White Balance, DCTLUI_COLOR_PICKER, 0.5f, 0.5f, 0.5f)
-DEFINE_UI_TOOLTIP(Custom White Balance, "Pick target white balance color")
+DEFINE_UI_PARAMS(tgtColor, Custom White Balance, DCTLUI_COLOR_PICKER, 0.5f, 0.5f, 0.5f);
+DEFINE_UI_TOOLTIP(Custom White Balance, "Pick target white balance color");
 
 //------------------------------------------------------------------------------
-// Matrix Operations
+// MATRIX OPERATIONS
 //------------------------------------------------------------------------------
 
-// Performs 3x3 matrix multiplication with a vector
-// @param in Input vector
-// @param mat 3x3 matrix in row-major order
-// @return Transformed vector
+//------------------------------------------------------------------------------
+// Function: multiplyMatrix
+// Description: Performs a 3x3 matrix multiplication with a 3-component vector.
+// Parameters:
+//   in  - Input vector (float3).
+//   mat - 3x3 matrix in row-major order.
+// Returns:
+//   Transformed vector (float3).
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 multiplyMatrix(float3 in, const float mat[9]) {
     return make_float3(
         in.x * mat[0] + in.y * mat[1] + in.z * mat[2],
@@ -54,66 +63,98 @@ __DEVICE__ float3 multiplyMatrix(float3 in, const float mat[9]) {
 }
 
 //------------------------------------------------------------------------------
-// Temperature Conversion Functions
+// TEMPERATURE CONVERSION FUNCTIONS
 //------------------------------------------------------------------------------
 
-// Converts color temperature to xy chromaticity coordinates and calculates derivatives
-// @param temperature Color temperature in Kelvin
-// @param x_out Output x chromaticity coordinate
-// @param y_out Output y chromaticity coordinate
-// @param dx_dT_out Output derivative of x with respect to temperature
-// @param dy_dT_out Output derivative of y with respect to temperature
+//------------------------------------------------------------------------------
+// Function: temperatureToXYandDerivatives
+// Description: Converts a color temperature (Kelvin) to xy chromaticity coordinates
+//              and calculates the derivatives with respect to temperature.
+// Parameters:
+//   temperature - Input temperature in Kelvin.
+//   x_out       - Output pointer for x chromaticity coordinate.
+//   y_out       - Output pointer for y chromaticity coordinate.
+//   dx_dT_out   - Output pointer for derivative of x with respect to temperature.
+//   dy_dT_out   - Output pointer for derivative of y with respect to temperature.
+//------------------------------------------------------------------------------
+
 __DEVICE__ void temperatureToXYandDerivatives(float temperature, thread float* x_out, thread float* y_out, 
     thread float* dx_dT_out, thread float* dy_dT_out) {
-    // Initialize all variables
+    // Initialize variables
     float x = 0.0f, y = 0.0f, dx_dT = 0.0f, dy_dT = 0.0f;
     float temp_kelvin = temperature;
 
-    // Calculate x coordinate and its derivative
+    // Calculate x coordinate and its derivative based on temperature range
     if (temp_kelvin <= 4000.0f) {
-        x = (-0.2661239e9f / (temp_kelvin * temp_kelvin * temp_kelvin)) - (0.2343580e6f / (temp_kelvin * temp_kelvin)) + (0.8776956e3f / temp_kelvin) + 0.179910f;
-        dx_dT = (0.7983717e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin)) + (0.4687160e6f / (temp_kelvin * temp_kelvin * temp_kelvin)) - (0.8776956e3f / (temp_kelvin * temp_kelvin));
+        x = (-0.2661239e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            - (0.2343580e6f / (temp_kelvin * temp_kelvin))
+            + (0.8776956e3f / temp_kelvin)
+            + 0.179910f;
+        dx_dT = (0.7983717e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
+            + (0.4687160e6f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            - (0.8776956e3f / (temp_kelvin * temp_kelvin));
     } else {
-        x = (-3.0258469e9f / (temp_kelvin * temp_kelvin * temp_kelvin)) + (2.1070379e6f / (temp_kelvin * temp_kelvin)) + (0.2226347e3f / temp_kelvin) + 0.240390f;
-        dx_dT = (9.0775407e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin)) - (4.2140758e6f / (temp_kelvin * temp_kelvin * temp_kelvin)) - (0.2226347e3f / (temp_kelvin * temp_kelvin));
+        x = (-3.0258469e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            + (2.1070379e6f / (temp_kelvin * temp_kelvin))
+            + (0.2226347e3f / temp_kelvin)
+            + 0.240390f;
+        dx_dT = (9.0775407e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
+            - (4.2140758e6f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            - (0.2226347e3f / (temp_kelvin * temp_kelvin));
     }
 
-    // Calculate y coordinate and its derivative
+    // Calculate y coordinate and its derivative based on temperature range
     if (temp_kelvin <= 2222.0f) {
-        y = -1.1063814f * (x * x * x) - 1.34811020f * (x * x) + 2.18555832f * x - 0.20219683f;
-        float dy_dx = -3.3191442f * (x * x) - 2.69622040f * x + 2.18555832f;
+        y = -1.1063814f * (x * x * x)
+            - 1.34811020f * (x * x)
+            + 2.18555832f * x
+            - 0.20219683f;
+        float dy_dx = -3.3191442f * (x * x)
+            - 2.69622040f * x
+            + 2.18555832f;
         dy_dT = dy_dx * dx_dT;
     } else {
-        y = -0.9549476f * (x * x * x) - 1.37418593f * (x * x) + 2.09137015f * x - 0.16748867f;
-        float dy_dx = -2.8648428f * (x * x) - 2.74837186f * x + 2.09137015f;
+        y = -0.9549476f * (x * x * x)
+            - 1.37418593f * (x * x)
+            + 2.09137015f * x
+            - 0.16748867f;
+        float dy_dx = -2.8648428f * (x * x)
+            - 2.74837186f * x
+            + 2.09137015f;
         dy_dT = dy_dx * dx_dT;
     }
 
-    // Output results
+    // Output the calculated values
     *x_out = x;
     *y_out = y;
     *dx_dT_out = dx_dT;
     *dy_dT_out = dy_dT;
 }
 
-// Applies tint adjustment to chromaticity coordinates
-// @param x_in_out Input/output x chromaticity coordinate
-// @param y_in_out Input/output y chromaticity coordinate
-// @param dx_dT Temperature derivative of x
-// @param dy_dT Temperature derivative of y
-// @param tint Tint adjustment value
+//------------------------------------------------------------------------------
+// Function: applyTintAdjustment
+// Description: Adjusts chromaticity coordinates by applying a tint, based on the derivative
+//              of the black body locus. This nudges the coordinates along a normalized vector.
+// Parameters:
+//   x_in_out - Pointer to the x chromaticity coordinate (input and output).
+//   y_in_out - Pointer to the y chromaticity coordinate (input and output).
+//   dx_dT    - Derivative of x with respect to temperature.
+//   dy_dT    - Derivative of y with respect to temperature.
+//   tint     - Tint adjustment value.
+//------------------------------------------------------------------------------
+
 __DEVICE__ void applyTintAdjustment(thread float* x_in_out, thread float* y_in_out, float dx_dT, float dy_dT, float tint) {
-    // Calculate normal vector to blackbody locus
+    // Calculate the normal vector to the black body locus
     float nx = -dy_dT;
     float ny = dx_dT;
 
-    // Normalize vector
+    // Normalize the vector
     float length = sqrt(nx * nx + ny * ny);
     if (length > 0.0f) {
         nx /= length;
         ny /= length;
 
-        // Apply tint adjustment
+        // Apply tint adjustment (scaled by a constant factor)
         float tintAdjustment = tint * 0.0005f;
         *x_in_out += nx * tintAdjustment;
         *y_in_out += ny * tintAdjustment;
@@ -121,16 +162,22 @@ __DEVICE__ void applyTintAdjustment(thread float* x_in_out, thread float* y_in_o
 }
 
 //------------------------------------------------------------------------------
-// Color Adaptation Functions
+// COLOR ADAPTATION FUNCTIONS
 //------------------------------------------------------------------------------
 
-// Applies CAT02 chromatic adaptation to adjust for different white points
-// @param XYZ Input XYZ color
-// @param sourceWhiteXYZ Source white point in XYZ
-// @param targetWhiteXYZ Target white point in XYZ
-// @return Adapted XYZ color
+//------------------------------------------------------------------------------
+// Function: applyCAT02Adaptation
+// Description: Applies CAT02 chromatic adaptation to an XYZ color to adjust for different white points.
+// Parameters:
+//   XYZ            - Input color in XYZ.
+//   sourceWhiteXYZ - Source white point in XYZ.
+//   targetWhiteXYZ - Target white point in XYZ.
+// Returns:
+//   Adapted XYZ color (float3).
+//------------------------------------------------------------------------------
+
 __DEVICE__ float3 applyCAT02Adaptation(float3 XYZ, float3 sourceWhiteXYZ, float3 targetWhiteXYZ) {
-    // CAT02 and inverse matrices
+    // CAT02 adaptation matrix and its inverse
     const float CAT02[9] = {
         0.7328f, 0.4296f, -0.1624f,
         -0.7036f, 1.6975f, 0.0061f,
@@ -143,7 +190,7 @@ __DEVICE__ float3 applyCAT02Adaptation(float3 XYZ, float3 sourceWhiteXYZ, float3
         -0.0096276f, -0.005698f, 1.015326f
     };
 
-    // Convert to LMS space
+    // Convert the input XYZ to LMS space
     float3 LMS = multiplyMatrix(XYZ, CAT02);
     float3 LMS_sourceWhite = multiplyMatrix(sourceWhiteXYZ, CAT02);
     float3 LMS_targetWhite = multiplyMatrix(targetWhiteXYZ, CAT02);
@@ -154,21 +201,33 @@ __DEVICE__ float3 applyCAT02Adaptation(float3 XYZ, float3 sourceWhiteXYZ, float3
     LMS_adapted.y = (LMS_sourceWhite.y != 0.0f) ? LMS.y * (LMS_targetWhite.y / LMS_sourceWhite.y) : LMS.y;
     LMS_adapted.z = (LMS_sourceWhite.z != 0.0f) ? LMS.z * (LMS_targetWhite.z / LMS_sourceWhite.z) : LMS.z;
 
-    // Convert back to XYZ
+    // Convert adapted LMS back to XYZ space
     return multiplyMatrix(LMS_adapted, invCAT02);
 }
 
 //------------------------------------------------------------------------------
-// Conversion Functions
+// CONVERSION FUNCTIONS
 //------------------------------------------------------------------------------
 
-// Struct to select appropriate conversion functions based on dropdown
+//------------------------------------------------------------------------------
+// Struct: ConversionFunctions
+// Description: Holds pointers to the input conversion functions (log-to-linear and colorspace-to-XYZ).
+//------------------------------------------------------------------------------
+
 struct ConversionFunctions {
     float3 (*logToLinFunc)(float3 in);
     float3 (*colorspaceToXYZFunc)(float3 in);
 };
 
-// Select appropriate input conversion functions based on source input
+//------------------------------------------------------------------------------
+// Function: selectConversionFunctions
+// Description: Selects appropriate input conversion functions based on the source input dropdown.
+// Parameters:
+//   sourceInput - Integer representing the selected source input.
+// Returns:
+//   A ConversionFunctions struct with function pointers for log-to-linear and colorspace-to-XYZ conversion.
+//------------------------------------------------------------------------------
+
 __DEVICE__ ConversionFunctions selectConversionFunctions(int sourceInput) {
     ConversionFunctions funcs;
     switch (sourceInput) {
@@ -199,14 +258,25 @@ __DEVICE__ ConversionFunctions selectConversionFunctions(int sourceInput) {
     return funcs;
 }
 
+//------------------------------------------------------------------------------
+// Struct: OutputConversionFunctions
+// Description: Holds pointers to the output conversion functions (XYZ-to-colorspace and linear-to-log).
+//------------------------------------------------------------------------------
 
-// Struct for output conversion functions (XYZ back to RGB)
 struct OutputConversionFunctions {
     float3 (*XYZtoColorspaceFunc)(float3 in);
     float3 (*linToLogFunc)(float3 in);
 };
 
-// Select appropriate output conversion functions based on source input
+//------------------------------------------------------------------------------
+// Function: selectOutputConversionFunctions
+// Description: Selects appropriate output conversion functions based on the source input.
+// Parameters:
+//   sourceInput - Integer representing the selected source input.
+// Returns:
+//   An OutputConversionFunctions struct with function pointers for XYZ-to-colorspace and linear-to-log conversion.
+//------------------------------------------------------------------------------
+
 __DEVICE__ OutputConversionFunctions selectOutputConversionFunctions(int sourceInput) {
     OutputConversionFunctions funcs;
     switch (sourceInput) {
@@ -238,42 +308,64 @@ __DEVICE__ OutputConversionFunctions selectOutputConversionFunctions(int sourceI
 }
 
 //------------------------------------------------------------------------------
-// Main Function
+// MAIN FUNCTION
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Function: transform
+// Description: Main image transformation function that adjusts color temperature based
+//              on the Black Body Radiator model. The process includes:
+//              1. Reading the current pixel color from textures (in log space).
+//              2. Retrieving UI parameters for source/target temperature, tint, sampling, etc.
+//              3. Selecting the proper conversion functions based on the source input color space.
+//              4. Calculating a block-based average if auto white balance is selected.
+//              5. Displaying an average color patch if enabled.
+//              6. Computing the source white point from the input temperature and applying tint.
+//              7. Determining the target white point based on the selected white balance mode:
+//                 Temperature, Custom, or Average.
+//              8. Converting the current pixel from log to linear, then to XYZ.
+//              9. Adapting the pixel color using CAT02 chromatic adaptation.
+//             10. Converting the adapted color back to the target colorspace and back to log space.
+// Parameters:
+//   p_Width, p_Height   - Full image dimensions.
+//   p_X, p_Y          - Pixel coordinates in full image space.
+//   p_TexR, p_TexG, p_TexB - Textures for the R, G, and B channels.
+// Returns:
+//   The final output color (float3) after color temperature adjustment.
 //------------------------------------------------------------------------------
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, __TEXTURE__ p_TexG, __TEXTURE__ p_TexB) {
-    // Get current pixel values in log space
+    // Retrieve current pixel values from the textures (in log space)
     float3 inputRGB = make_float3(
         _tex2D(p_TexR, p_X, p_Y),
         _tex2D(p_TexG, p_X, p_Y),
         _tex2D(p_TexB, p_X, p_Y)
     );
 
-    // Get UI parameters
+    // Retrieve UI parameters
     float inputTemperature = p_InputTemperature;
     float temperature = p_Temperature;
     float tint = p_Tint;
-    int blockSize = sample_block_size;  // Using renamed variable
+    int blockSize = sample_block_size;  // Sample block size for averaging
     bool showBox = (p_ShowAvgBox != 0);
 
-    // Select appropriate conversion functions
-    // Select input and output conversion functions based on color space
+    // Select appropriate conversion functions based on the source input color space
     ConversionFunctions inputConversion = selectConversionFunctions(p_SourceInput);
     OutputConversionFunctions outputConversion = selectOutputConversionFunctions(p_SourceInput);
 
-    // Initialize average linear RGB
+    // Initialize the average linear RGB (default mid-grey value)
     float3 avgLin = make_float3(0.18f, 0.18f, 0.18f);
 
-    // Calculate block-based average if needed
+    // Calculate block-based average for auto white balance (mode 2) or if the average box is enabled
     if (p_Mode == 2 || showBox) {
         float sumLinR = 0.0f, sumLinG = 0.0f, sumLinB = 0.0f;
         float validSamples = 0.0f;
 
-        // Calculate number of blocks
+        // Determine number of blocks in x and y directions
         int blocks_x = p_Width / blockSize;
         int blocks_y = p_Height / blockSize;
 
-        // Sample center of each block
+        // Sample the center of each block
         for (int by = 0; by < blocks_y; by++) {
             int center_y = by * blockSize + blockSize / 2;
             if (center_y >= p_Height) continue;
@@ -282,14 +374,14 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
                 int center_x = bx * blockSize + blockSize / 2;
                 if (center_x >= p_Width) continue;
 
-                // Get log values at block center
+                // Retrieve the center pixel of the block (in log space)
                 float3 blockRGB = make_float3(
                     _tex2D(p_TexR, center_x, center_y),
                     _tex2D(p_TexG, center_x, center_y),
                     _tex2D(p_TexB, center_x, center_y)
                 );
 
-                // Exclude near-black/white values
+                // Exclude near-black/white values to avoid outliers
                 if (blockRGB.x > 0.01f && blockRGB.x < 0.99f &&
                     blockRGB.y > 0.01f && blockRGB.y < 0.99f &&
                     blockRGB.z > 0.01f && blockRGB.z < 0.99f) {
@@ -302,7 +394,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
             }
         }
 
-        // Calculate average if we have valid samples
+        // If valid samples exist, compute the average linear RGB
         if (validSamples > 0.0f) {
             avgLin = make_float3(
                 sumLinR / validSamples,
@@ -312,30 +404,35 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
         }
     }
 
-    // Convert average to log space
+    // Convert the average linear RGB to log space for display purposes
     float3 avgColorLog = outputConversion.linToLogFunc(avgLin);
 
-    // Show average color patch
+    // If the average box is enabled and the pixel is in the top-left region, display the average color patch
     if (showBox && p_X < 200 && p_Y < 200) {
         return avgColorLog;
     }
 
-    // Calculate source white point
+    // Calculate the source white point:
+    // 1. Convert input temperature (Kelvin) to xy chromaticity coordinates.
+    // 2. Apply tint adjustment.
     float x_source, y_source, dx_dT_source, dy_dT_source;
     temperatureToXYandDerivatives(inputTemperature, &x_source, &y_source, &dx_dT_source, &dy_dT_source);
     applyTintAdjustment(&x_source, &y_source, dx_dT_source, dy_dT_source, tint);
 
-    // Convert source white point to XYZ
+    // Convert the source white point from xy to XYZ space
     float3 tintedSourceWhiteXYZ = make_float3(
         (1.0f / y_source) * x_source,
         1.0f,
         (1.0f / y_source) * (1.0f - x_source - y_source)
     );
 
-    // Initialize target white point
+    // Initialize the target white point to the source white point (default)
     float3 targetWhiteXYZ = tintedSourceWhiteXYZ;
 
-    // Calculate target white point based on selected mode
+    // Determine the target white point based on the selected white balance mode:
+    //   Mode 0 (Temperature): Use the target Kelvin value.
+    //   Mode 1 (Custom): Use the color picked from the color picker.
+    //   Mode 2 (Average): Use the block-based average color.
     if (p_Mode == 0) {  // Temperature mode
         float x_tgt, y_tgt, dx_tgt, dy_tgt;
         temperatureToXYandDerivatives(temperature, &x_tgt, &y_tgt, &dx_tgt, &dy_tgt);
@@ -361,7 +458,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
             );
         }
         else {
-            // Fallback to D65 if sum is zero
+            // Fallback to D65 if the sum is zero
             targetWhiteXYZ = make_float3(0.3127f, 1.0f, 0.3290f);
         }
     }
@@ -378,12 +475,17 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
             );
         }
         else {
-            // Fallback to D65 if sum is zero
+            // Fallback to D65 if the sum is zero
             targetWhiteXYZ = make_float3(0.3127f, 1.0f, 0.3290f);
         }
     }
 
-    // Process current pixel
+    // Process the current pixel:
+    // 1. Convert the pixel from log space to linear.
+    // 2. Convert linear color to XYZ.
+    // 3. Adapt the XYZ color using CAT02 adaptation.
+    // 4. Convert the adapted XYZ color to the target color space.
+    // 5. Convert the final linear color back to log space.
     float3 linRGB = inputConversion.logToLinFunc(inputRGB);
     float3 XYZ = inputConversion.colorspaceToXYZFunc(linRGB);
     float3 adaptedXYZ = applyCAT02Adaptation(XYZ, targetWhiteXYZ, tintedSourceWhiteXYZ);
