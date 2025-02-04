@@ -30,7 +30,7 @@ DEFINE_UI_PARAMS(p_ShowAvgBox, Show Input Average, DCTLUI_CHECK_BOX, 0)
 DEFINE_UI_TOOLTIP(Show Input Average, "Shows the average color of the input image based on the Sample Block Size"))
 
 // Color Space Selection
-DEFINE_UI_PARAMS(p_SourceInput, Source Input, DCTLUI_COMBO_BOX, 8, {AcesCCT_AP1, AcesCG_AP1, AppleLog_Rec2020, ArriLogC3_AWG3, ArriLogC4_AWG4, BlackmagicFilmGen5_BMWideGamut, CanonLog2_CanonCinemaGamut, CanonLog3_CanonCinemaGamut, DaVinciIntermediate_DWG, DJI_DLog_DGamut, FilmlightTLog_EGamut, FujiFLog_FGamut, FujiFLog2_FGamut, GoProProtune_GoProGamut, LeicaLLog_Rec2020, PanasonicVLog_VGamut, RedLog3G10_RWG, SonySLog2_SGamut, SonySLog3_SGamut, SonySLog3_SGamutCine, SonySLog3_SGamutVenice, SonySLog3_SGamutVeniceCine}, {Aces CCT / AP1, Aces CG / AP1, Apple Log / Rec2020, Arri LogC3 / AWG3, Arri LogC4 / AWG4, Blackmagic Film Gen5 / BM Wide Gamut, Canon Log 2 / Canon Cinema Gamut, Canon Log 3 / Canon Cinema Gamut, DaVinci Intermediate / DWG, DJI D-Log / D-Gamut, Filmlight T-Log / E-Gamut, Fuji F-Log / F-Gamut, Fuji F-Log2 / F-Gamut, GoPro Protune / GoPro Gamut, Leica L-Log / Rec2020, Panasonic V-Log / V-Gamut, Red Log3G10 / RWG, Sony S-Log2 / S-Gamut 3, Sony S-Log3 / S-Gamut 3, Sony S-Log3 / S-Gamut 3.Cine, Sony S-Log3 / S-Gamut 3 Venice, Sony S-Log3 / S-Gamut 3.Cine Venice})
+DEFINE_UI_PARAMS(p_SourceInput, Source Input, DCTLUI_COMBO_BOX, 10, {Aces2065, AcesCCT_AP1, AcesCG_AP1, AppleLog_Rec2020, ArriLogC3_AWG3, ArriLogC4_AWG4, BlackmagicFilmGen5_BMWideGamut, CanonLog2_CanonCinemaGamut, CanonLog3_CanonCinemaGamut, DaVinciIntermediate_DWG, DJI_DLog_DGamut, FilmlightTLog_EGamut, FujiFLog_FGamut, FujiFLog2_FGamut, GoProProtune_GoProGamut, LeicaLLog_Rec2020, PanasonicVLog_VGamut, RedLog3G10_RWG, SonySLog2_SGamut, SonySLog3_SGamut, SonySLog3_SGamutCine, SonySLog3_SGamutVenice, SonySLog3_SGamutVeniceCine}, {Aces2065-1 (AP0) / Linear, Aces CCT (AP1), Aces CG (AP1), Apple Log / Rec2020, Arri LogC3 / AWG3, Arri LogC4 / AWG4, Blackmagic Film Gen5 / BM Wide Gamut, Canon Log 2 / Canon Cinema Gamut, Canon Log 3 / Canon Cinema Gamut, DaVinci Intermediate / DWG, DJI D-Log / D-Gamut, Filmlight T-Log / E-Gamut, Fuji F-Log / F-Gamut, Fuji F-Log2 / F-Gamut, GoPro Protune / GoPro Gamut, Leica L-Log / Rec2020, Panasonic V-Log / V-Gamut, Red Log3G10 / RWG, Sony S-Log2 / S-Gamut 3, Sony S-Log3 / S-Gamut 3, Sony S-Log3 / S-Gamut 3.Cine, Sony S-Log3 / S-Gamut 3 Venice, Sony S-Log3 / S-Gamut 3.Cine Venice})
 DEFINE_UI_TOOLTIP(Source Input, "Source Input Color Space and Transfer Function")
 
 // Custom White Balance Color Picker
@@ -172,31 +172,33 @@ struct ConversionFunctions {
 __DEVICE__ ConversionFunctions selectConversionFunctions(int sourceInput) {
     ConversionFunctions funcs;
     switch (sourceInput) {
-        case 0: funcs.logToLinFunc = logToLinACEScct; funcs.colorspaceToXYZFunc = ACES_CCTtoXYZ; break;
-        case 1: funcs.logToLinFunc = logToLinACEScc; funcs.colorspaceToXYZFunc = ACES_CGtoXYZ; break;
-        case 2: funcs.logToLinFunc = logToLinAppleLogProfile; funcs.colorspaceToXYZFunc = AppleLogtoXYZ; break;
-        case 3: funcs.logToLinFunc = logToLinArriLogC3; funcs.colorspaceToXYZFunc = ArriWideGamut3toXYZ; break;
-        case 4: funcs.logToLinFunc = logToLinArriLogC4; funcs.colorspaceToXYZFunc = ArriWideGamut4toXYZ; break;
-        case 5: funcs.logToLinFunc = logToLinBlackmagicFilmGen5; funcs.colorspaceToXYZFunc = BlackMagicWideGamutGen5toXYZ; break;
-        case 6: funcs.logToLinFunc = logToLinCanonLog2; funcs.colorspaceToXYZFunc = CanonCinemaGamuttoXYZ; break;
-        case 7: funcs.logToLinFunc = logToLinCanonLog3; funcs.colorspaceToXYZFunc = CanonCinemaGamuttoXYZ; break;
-        case 8: funcs.logToLinFunc = logToLinDavinciIntermediate; funcs.colorspaceToXYZFunc = DaVinciWideGamuttoXYZ; break;
-        case 9: funcs.logToLinFunc = logToLinDJIDLog; funcs.colorspaceToXYZFunc = DJIDGamuttoXYZ; break;
-        case 10: funcs.logToLinFunc = logToLinFilmLightTLog; funcs.colorspaceToXYZFunc = FilmLightEGamuttoXYZ; break;
-        case 11: funcs.logToLinFunc = logToLinFLog; funcs.colorspaceToXYZFunc = FujiFGamuttoXYZ; break;
-        case 12: funcs.logToLinFunc = logToLinFLog2; funcs.colorspaceToXYZFunc = FujiFGamuttoXYZ; break;
-        case 13: funcs.logToLinFunc = logToLinProtune; funcs.colorspaceToXYZFunc = GoProProtuneToXYZ; break;
-        case 14: funcs.logToLinFunc = logToLinLeicaLog; funcs.colorspaceToXYZFunc = Rec2020toXYZ; break;
-        case 15: funcs.logToLinFunc = logToLinVLog; funcs.colorspaceToXYZFunc = PanasonicVGamuttoXYZ; break;
-        case 16: funcs.logToLinFunc = logToLinRedLog3g10; funcs.colorspaceToXYZFunc = RedWideGamuttoXYZ; break;
-        case 17: funcs.logToLinFunc = logToLinSonySLog2; funcs.colorspaceToXYZFunc = SGamut3toXYZ; break;
-        case 18: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3toXYZ; break;
-        case 19: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3CinetoXYZ; break;
-        case 20: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3VenicetoXYZ; break;
-        case 21: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3VeniceCinetoXYZ; break;
+        case 0: funcs.logToLinFunc = linear; funcs.colorspaceToXYZFunc = ACES2065toXYZ; break;
+        case 1: funcs.logToLinFunc = logToLinACEScct; funcs.colorspaceToXYZFunc = ACES_CCTtoXYZ; break;
+        case 2: funcs.logToLinFunc = logToLinACEScc; funcs.colorspaceToXYZFunc = ACES_CGtoXYZ; break;
+        case 3: funcs.logToLinFunc = logToLinAppleLogProfile; funcs.colorspaceToXYZFunc = AppleLogtoXYZ; break;
+        case 4: funcs.logToLinFunc = logToLinArriLogC3; funcs.colorspaceToXYZFunc = ArriWideGamut3toXYZ; break;
+        case 5: funcs.logToLinFunc = logToLinArriLogC4; funcs.colorspaceToXYZFunc = ArriWideGamut4toXYZ; break;
+        case 6: funcs.logToLinFunc = logToLinBlackmagicFilmGen5; funcs.colorspaceToXYZFunc = BlackMagicWideGamutGen5toXYZ; break;
+        case 7: funcs.logToLinFunc = logToLinCanonLog2; funcs.colorspaceToXYZFunc = CanonCinemaGamuttoXYZ; break;
+        case 8: funcs.logToLinFunc = logToLinCanonLog3; funcs.colorspaceToXYZFunc = CanonCinemaGamuttoXYZ; break;
+        case 9: funcs.logToLinFunc = logToLinDavinciIntermediate; funcs.colorspaceToXYZFunc = DaVinciWideGamuttoXYZ; break;
+        case 10: funcs.logToLinFunc = logToLinDJIDLog; funcs.colorspaceToXYZFunc = DJIDGamuttoXYZ; break;
+        case 11: funcs.logToLinFunc = logToLinFilmLightTLog; funcs.colorspaceToXYZFunc = FilmLightEGamuttoXYZ; break;
+        case 12: funcs.logToLinFunc = logToLinFLog; funcs.colorspaceToXYZFunc = FujiFGamuttoXYZ; break;
+        case 13: funcs.logToLinFunc = logToLinFLog2; funcs.colorspaceToXYZFunc = FujiFGamuttoXYZ; break;
+        case 14: funcs.logToLinFunc = logToLinProtune; funcs.colorspaceToXYZFunc = GoProProtuneToXYZ; break;
+        case 15: funcs.logToLinFunc = logToLinLeicaLog; funcs.colorspaceToXYZFunc = Rec2020toXYZ; break;
+        case 16: funcs.logToLinFunc = logToLinVLog; funcs.colorspaceToXYZFunc = PanasonicVGamuttoXYZ; break;
+        case 17: funcs.logToLinFunc = logToLinRedLog3g10; funcs.colorspaceToXYZFunc = RedWideGamuttoXYZ; break;
+        case 18: funcs.logToLinFunc = logToLinSonySLog2; funcs.colorspaceToXYZFunc = SGamut3toXYZ; break;
+        case 19: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3toXYZ; break;
+        case 20: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3CinetoXYZ; break;
+        case 21: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3VenicetoXYZ; break;
+        case 22: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3VeniceCinetoXYZ; break;
     }
     return funcs;
 }
+
 
 // Struct for output conversion functions (XYZ back to RGB)
 struct OutputConversionFunctions {
@@ -208,28 +210,29 @@ struct OutputConversionFunctions {
 __DEVICE__ OutputConversionFunctions selectOutputConversionFunctions(int sourceInput) {
     OutputConversionFunctions funcs;
     switch (sourceInput) {
-        case 0: funcs.XYZtoColorspaceFunc = XYZtoACES_CCT; funcs.linToLogFunc = linToLogACEScct; break;
-        case 1: funcs.XYZtoColorspaceFunc = XYZtoACES_CG; funcs.linToLogFunc = linToLogACEScc; break;
-        case 2: funcs.XYZtoColorspaceFunc = XYZtoAppleLog; funcs.linToLogFunc = linToLogAppleLogProfile; break;
-        case 3: funcs.XYZtoColorspaceFunc = XYZtoArriWideGamut3; funcs.linToLogFunc = linToLogArriLogC3; break;
-        case 4: funcs.XYZtoColorspaceFunc = XYZtoArriWideGamut4; funcs.linToLogFunc = linToLogArriLogC4; break;
-        case 5: funcs.XYZtoColorspaceFunc = XYZtoBlackMagicWideGamutGen5; funcs.linToLogFunc = linToLogBlackmagicFilmGen5; break;
-        case 6: funcs.XYZtoColorspaceFunc = XYZtoCanonCinemaGamut; funcs.linToLogFunc = linToLogCanonLog2; break;
-        case 7: funcs.XYZtoColorspaceFunc = XYZtoCanonCinemaGamut; funcs.linToLogFunc = linToLogCanonLog3; break;
-        case 8: funcs.XYZtoColorspaceFunc = XYZtoDaVinciWideGamut; funcs.linToLogFunc = linToLogDavinciIntermediate; break;
-        case 9: funcs.XYZtoColorspaceFunc = XYZtoDJIDGamut; funcs.linToLogFunc = linToLogDJIDLog; break;
-        case 10: funcs.XYZtoColorspaceFunc = XYZtoFilmLightEGamut; funcs.linToLogFunc = linToLogFilmLightTLog; break;
-        case 11: funcs.XYZtoColorspaceFunc = XYZtoFujiFGamut; funcs.linToLogFunc = linToLogFLog; break;
-        case 12: funcs.XYZtoColorspaceFunc = XYZtoFujiFGamut; funcs.linToLogFunc = linToLogFLog2; break;
-        case 13: funcs.XYZtoColorspaceFunc = XYZtoGoProProtune; funcs.linToLogFunc = linToLogProtune; break;
-        case 14: funcs.XYZtoColorspaceFunc = XYZtoRec2020; funcs.linToLogFunc = linToLogLeicaLog; break;
-        case 15: funcs.XYZtoColorspaceFunc = XYZtoPanasonicVGamut; funcs.linToLogFunc = linToLogVLog; break;
-        case 16: funcs.XYZtoColorspaceFunc = XYZtoRedWideGamut; funcs.linToLogFunc = linToLogRedLog3g10; break;
-        case 17: funcs.XYZtoColorspaceFunc = XYZtoSGamut3; funcs.linToLogFunc = linToLogSonySLog2; break;
-        case 18: funcs.XYZtoColorspaceFunc = XYZtoSGamut3; funcs.linToLogFunc = linToLogSonySLog3; break;
-        case 19: funcs.XYZtoColorspaceFunc = XYZtoSGamut3Cine; funcs.linToLogFunc = linToLogSonySLog3; break;
-        case 20: funcs.XYZtoColorspaceFunc = XYZtoSGamut3Venice; funcs.linToLogFunc = linToLogSonySLog3; break;
-        case 21: funcs.XYZtoColorspaceFunc = XYZtoSGamut3VeniceCine; funcs.linToLogFunc = linToLogSonySLog3; break;
+        case 0: funcs.XYZtoColorspaceFunc = XYZtoACES2065; funcs.linToLogFunc = linear; break;
+        case 1: funcs.XYZtoColorspaceFunc = XYZtoACES_CCT; funcs.linToLogFunc = linToLogACEScct; break;
+        case 2: funcs.XYZtoColorspaceFunc = XYZtoACES_CG; funcs.linToLogFunc = linToLogACEScc; break;
+        case 3: funcs.XYZtoColorspaceFunc = XYZtoAppleLog; funcs.linToLogFunc = linToLogAppleLogProfile; break;
+        case 4: funcs.XYZtoColorspaceFunc = XYZtoArriWideGamut3; funcs.linToLogFunc = linToLogArriLogC3; break;
+        case 5: funcs.XYZtoColorspaceFunc = XYZtoArriWideGamut4; funcs.linToLogFunc = linToLogArriLogC4; break;
+        case 6: funcs.XYZtoColorspaceFunc = XYZtoBlackMagicWideGamutGen5; funcs.linToLogFunc = linToLogBlackmagicFilmGen5; break;
+        case 7: funcs.XYZtoColorspaceFunc = XYZtoCanonCinemaGamut; funcs.linToLogFunc = linToLogCanonLog2; break;
+        case 8: funcs.XYZtoColorspaceFunc = XYZtoCanonCinemaGamut; funcs.linToLogFunc = linToLogCanonLog3; break;
+        case 9: funcs.XYZtoColorspaceFunc = XYZtoDaVinciWideGamut; funcs.linToLogFunc = linToLogDavinciIntermediate; break;
+        case 10: funcs.XYZtoColorspaceFunc = XYZtoDJIDGamut; funcs.linToLogFunc = linToLogDJIDLog; break;
+        case 11: funcs.XYZtoColorspaceFunc = XYZtoFilmLightEGamut; funcs.linToLogFunc = linToLogFilmLightTLog; break;
+        case 12: funcs.XYZtoColorspaceFunc = XYZtoFujiFGamut; funcs.linToLogFunc = linToLogFLog; break;
+        case 13: funcs.XYZtoColorspaceFunc = XYZtoFujiFGamut; funcs.linToLogFunc = linToLogFLog2; break;
+        case 14: funcs.XYZtoColorspaceFunc = XYZtoGoProProtune; funcs.linToLogFunc = linToLogProtune; break;
+        case 15: funcs.XYZtoColorspaceFunc = XYZtoRec2020; funcs.linToLogFunc = linToLogLeicaLog; break;
+        case 16: funcs.XYZtoColorspaceFunc = XYZtoPanasonicVGamut; funcs.linToLogFunc = linToLogVLog; break;
+        case 17: funcs.XYZtoColorspaceFunc = XYZtoRedWideGamut; funcs.linToLogFunc = linToLogRedLog3g10; break;
+        case 18: funcs.XYZtoColorspaceFunc = XYZtoSGamut3; funcs.linToLogFunc = linToLogSonySLog2; break;
+        case 19: funcs.XYZtoColorspaceFunc = XYZtoSGamut3; funcs.linToLogFunc = linToLogSonySLog3; break;
+        case 20: funcs.XYZtoColorspaceFunc = XYZtoSGamut3Cine; funcs.linToLogFunc = linToLogSonySLog3; break;
+        case 21: funcs.XYZtoColorspaceFunc = XYZtoSGamut3Venice; funcs.linToLogFunc = linToLogSonySLog3; break;
+        case 22: funcs.XYZtoColorspaceFunc = XYZtoSGamut3VeniceCine; funcs.linToLogFunc = linToLogSonySLog3; break;
     }
     return funcs;
 }
