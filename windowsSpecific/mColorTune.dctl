@@ -1,0 +1,735 @@
+#line 2 // Debugging line
+
+// Hue Specific Color Adjustment DCTL v1.05
+// Author: Matt.C
+// Description: Alters the hue, density and saturation of specific colors
+
+//------------------------------------------------------------------------------
+// UI Parameters
+//------------------------------------------------------------------------------
+
+// Define sliders for specific hues, for saturation, density and hue shift as well as width
+
+// Red
+DEFINE_UI_PARAMS(saturationRed, Red Saturation 💔, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)          // Red saturation adjustment control
+DEFINE_UI_TOOLTIP(Red Saturation 💔, "Red Saturation Adjustment")
+DEFINE_UI_PARAMS(densityRed, Red Density 💔, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)               // Red density adjustment control
+DEFINE_UI_TOOLTIP(Red Density 💔, "Red Density Adjustment")
+DEFINE_UI_PARAMS(hueShiftRed, Red Hue Shift 💔, DCTLUI_SLIDER_FLOAT, 0.0f, -180.0f, 180.0f, 0.01f)  // Red hue shift control
+DEFINE_UI_TOOLTIP(Red Hue Shift 💔, "Red Hue Adjustment")
+DEFINE_UI_PARAMS(falloffRed, Red Width 💔, DCTLUI_SLIDER_FLOAT, 60.0f, 10.0f, 110.0f, 0.1f)     // Red falloff width
+DEFINE_UI_TOOLTIP(Red Width 💔, "Red Hue's Falloff")
+
+// Skintone
+DEFINE_UI_PARAMS(saturationSkin, Skintone Saturation 🧡, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Skintone Saturation 🧡, "Skintone Saturation Adjustment")
+DEFINE_UI_PARAMS(densitySkin, Skintone Density 🧡, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Skintone Density 🧡, "Skintone Density Adjustment")
+DEFINE_UI_PARAMS(hueShiftSkin, Skintone Hue Shift 🧡, DCTLUI_SLIDER_FLOAT, 0.0f, -180.0f, 180.0f, 0.01f)
+DEFINE_UI_TOOLTIP(Skintone Hue Shift 🧡, "Skintone Hue Adjustment")
+DEFINE_UI_PARAMS(falloffSkin, Skintone Width 🧡, DCTLUI_SLIDER_FLOAT, 60.0f, 10.0f, 110.0f, 0.1f)
+DEFINE_UI_TOOLTIP(Skintone Width 🧡, "Skintone Hue's Falloff")
+
+
+// Yellow
+DEFINE_UI_PARAMS(saturationYellow, Yellow Saturation 💛, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Yellow Saturation 💛, "Yellow Saturation Adjustment")
+DEFINE_UI_PARAMS(densityYellow, Yellow Density 💛, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Yellow Density 💛, "Yellow Density Adjustment")
+DEFINE_UI_PARAMS(hueShiftYellow, Yellow Hue Shift 💛, DCTLUI_SLIDER_FLOAT, 0.0f, -180.0f, 180.0f, 0.01f)
+DEFINE_UI_TOOLTIP(Yellow Hue Shift 💛, "Yellow Hue Adjustment")
+DEFINE_UI_PARAMS(falloffYellow, Yellow Width 💛, DCTLUI_SLIDER_FLOAT, 60.0f, 10.0f, 110.0f, 0.1f)
+DEFINE_UI_TOOLTIP(Yellow Width 💛, "Yellow Hue's Falloff")
+
+
+// Green
+DEFINE_UI_PARAMS(saturationGreen, Green Saturation 💚, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Green Saturation 💚, "Green Saturation Adjustment")
+DEFINE_UI_PARAMS(densityGreen, Green Density 💚, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Green Density 💚, "Green Density Adjustment")
+DEFINE_UI_PARAMS(hueShiftGreen, Green Hue Shift 💚, DCTLUI_SLIDER_FLOAT, 0.0f, -180.0f, 180.0f, 0.01f)
+DEFINE_UI_TOOLTIP(Green Hue Shift 💚, "Green Hue Adjustment")
+DEFINE_UI_PARAMS(falloffGreen, Green Width 💚, DCTLUI_SLIDER_FLOAT, 60.0f, 10.0f, 110.0f, 0.1f)
+DEFINE_UI_TOOLTIP(Green Width 💚, "Green Hue's Falloff")
+
+// Cyan
+DEFINE_UI_PARAMS(saturationCyan, Cyan Saturation 🩵, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Cyan Saturation 🩵, "Cyan Saturation Adjustment")
+DEFINE_UI_PARAMS(densityCyan, Cyan Density 🩵, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Cyan Density 🩵, "Cyan Density Adjustment")
+DEFINE_UI_PARAMS(hueShiftCyan, Cyan Hue Shift 🩵, DCTLUI_SLIDER_FLOAT, 0.0f, -180.0f, 180.0f, 0.01f)
+DEFINE_UI_TOOLTIP(Cyan Hue Shift 🩵, "Cyan Hue Adjustment")
+DEFINE_UI_PARAMS(falloffCyan, Cyan Width 🩵, DCTLUI_SLIDER_FLOAT, 60.0f, 10.0f, 110.0f, 0.1f)
+DEFINE_UI_TOOLTIP(Cyan Width 🩵, "Cyan Hue's Falloff")
+
+// Blue
+DEFINE_UI_PARAMS(saturationBlue, Blue Saturation 💙, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Blue Saturation 💙, "Blue Saturation Adjustment")
+DEFINE_UI_PARAMS(densityBlue, Blue Density 💙, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Blue Density 💙, "Blue Density Adjustment")
+DEFINE_UI_PARAMS(hueShiftBlue, Blue Hue Shift 💙, DCTLUI_SLIDER_FLOAT, 0.0f, -180.0f, 180.0f, 0.01f)
+DEFINE_UI_TOOLTIP(Blue Hue Shift 💙, "Blue Hue Adjustment")
+DEFINE_UI_PARAMS(falloffBlue, Blue Width 💙, DCTLUI_SLIDER_FLOAT, 60.0f, 10.0f, 110.0f, 0.1f)
+DEFINE_UI_TOOLTIP(Blue Width 💙, "Blue Hue's Falloff")
+
+
+// Magenta
+DEFINE_UI_PARAMS(saturationMagenta, Magenta Saturation 💜, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Magenta Saturation 💜, "Magenta Saturation Adjustment")
+DEFINE_UI_PARAMS(densityMagenta, Magenta Density 💜, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
+DEFINE_UI_TOOLTIP(Magenta Density 💜, "Magenta Density Adjustment")
+DEFINE_UI_PARAMS(hueShiftMagenta, Magenta Hue Shift 💜, DCTLUI_SLIDER_FLOAT, 0.0f, -180.0f, 180.0f, 0.01f)
+DEFINE_UI_TOOLTIP(Magenta Hue Shift 💜, "Magenta Hue Adjustment")
+DEFINE_UI_PARAMS(falloffMagenta, Magenta Width 💜, DCTLUI_SLIDER_FLOAT, 60.0f, 10.0f, 110.0f, 0.1f)
+DEFINE_UI_TOOLTIP(Magenta Width 💜, "Magenta Hue's Falloff")
+
+
+// Define sliders for Highlight Recovery and Shadow Recovery
+
+// Highlights
+DEFINE_UI_PARAMS(highlightRecovery, Highlight Recovery, DCTLUI_SLIDER_FLOAT, 0.0f, 0.0f, 1.0f, 0.01f)   // Slider for Highlight recovery
+DEFINE_UI_TOOLTIP(Highlight Recovery, "Restores original highlight values")
+
+// Shadows
+DEFINE_UI_PARAMS(shadowRecovery, Shadow Recovery, DCTLUI_SLIDER_FLOAT, 0.0f, 0.0f, 1.0f, 0.01f)         // Slider for Shadow recovery
+DEFINE_UI_TOOLTIP(Shadow Recovery, "Restores original shadow values")
+
+// Density
+DEFINE_UI_PARAMS(densityRecovery, Density Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)           // Slider for Density recovery
+DEFINE_UI_TOOLTIP(Density Recovery, "Restores bright, saturated colors")
+
+// View Mask Checkbox
+DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)                           // Checkbox to toggle viewing of the combined mask
+
+// Saturation Type ComboBox
+DEFINE_UI_PARAMS(pMathType, Saturation Type, DCTLUI_COMBO_BOX, 0, {saturationMath, vibranceMath}, {Saturation, Vibrance})
+DEFINE_UI_TOOLTIP(Saturation Type, "How Saturation is applied")
+
+// Falloff Curve Type ComboBox
+DEFINE_UI_PARAMS(pCurveType, Falloff Curve, DCTLUI_COMBO_BOX, 1, {smoothStepFalloffType, bellCurveFalloffType}, {Smooth Step, Bell Curve})
+DEFINE_UI_TOOLTIP(Falloff Curve, "How Hues are blended together")
+
+//------------------------------------------------------------------------------
+// Reference Values and Core Functions
+//------------------------------------------------------------------------------
+
+#define EPSILON 1e-6f  // Define epsilon for floating-point comparisons
+
+//------------------------------------------------------------------------------
+// Function: mixf
+// Description: Mixes two float values based on factor t.
+// Parameters:
+//   a - The first value.
+//   b - The second value.
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated value: a * (1 - t) + b * t.
+//------------------------------------------------------------------------------
+__DEVICE__ float mixf(float a, float b, float t) {
+    return a * (1.0f - t) + b * t;
+}
+
+//------------------------------------------------------------------------------
+// Function: mix3
+// Description: Mixes two float3 colors with gamma adjustment for smoother blending.
+// Parameters:
+//   a - The first color (float3).
+//   b - The second color (float3).
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 mix3(float3 a, float3 b, float t) {
+    t = powf(t, 1.5f); // Apply gamma to smooth the blending transition
+    return make_float3(
+        a.x * (1.0f - t) + b.x * t,
+        a.y * (1.0f - t) + b.y * t,
+        a.z * (1.0f - t) + b.z * t
+    );
+}
+
+//RGB to HSV conversion function
+__DEVICE__ float3 RGB_to_HSV(float3 in) {
+    float max = _fmaxf(in.x, _fmaxf(in.y, in.z)); // Maximum component value
+    float min = _fminf(in.x, _fminf(in.y, in.z)); // Minimum component value
+    float d = max - min; // Difference between maximum and minimum
+    float h = 0.0f; // Hue
+    float s = (max == 0 ? 0 : d / max); // Saturation
+ 
+    if (max == min) h = 0; // No difference, hue is 0
+    else if (max == in.x) h = (in.y - in.z) + d * (in.y < in.z ? 6: 0), h /= 6 * d; // Red is the maximum component
+    else if (max == in.y) h = (in.z - in.x) + d * 2, h /= 6 * d; // Green is the maximum component
+    else if (max == in.z) h = (in.x - in.y) + d * 4, h /= 6 * d; // Blue is the maximum component
+
+    return make_float3(h, s, max); // Return HSV color
+}
+
+//HSV to RGB conversion function
+__DEVICE__ float3 HSV_to_RGB(float3 in) {
+    float3 out = in;
+    float h = in.x; // Hue
+    float s = in.y; // Saturation
+    float v = in.z; // Value
+    float i = _floorf(h * 6); // Integer part of hue value multiplied by 6
+    float f = h * 6 -i; // Fractional part of hue value multiplied by 6
+    float p = v * (1 - s); // Intermediate value for calculation
+    float q = v * (1 - f * s); // Intermediate value for calculation
+    float t = v * (1 - (1 - f) * s); // Intermediate value for calculation
+
+    float r = _fmod(i, 6); // Wrap hue value to range [0, 6)
+
+    if (r == 0) out.x = v, out.y = t, out.z = p; // Calculate red, green, and blue components
+    else if (r == 1) out.x = q, out.y = v, out.z = p; // Calculate red, green, and blue components
+    else if (r == 2) out.x = p, out.y = v, out.z = t; // Calculate red, green, and blue components
+    else if (r == 3) out.x = p, out.y = q, out.z = v; // Calculate red, green, and blue components
+    else if (r == 4) out.x = t, out.y = p, out.z = v; // Calculate red, green, and blue components
+    else if (r == 5) out.x = v, out.y = p, out.z = q; // Calculate red, green, and blue components
+
+    return out; // Return RGB color
+}
+
+//------------------------------------------------------------------------------
+// Function: powf
+// Description: Computes the power function for a float base and exponent,
+//              ensuring the sign of the base is preserved. Makes powf consistent
+//              over different O.S
+// Parameters:
+//   base - The base value.
+//   exp  - The exponent value.
+// Returns:
+//   The result of base raised to exp, preserving the sign of base.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float powf(float base, float exp) {
+    return _copysignf(_powf(_fabs(base), exp), base);
+}
+
+//------------------------------------------------------------------------------
+// Function: bellCurve
+// Description: Computes a Gaussian bell curve value for a given input.
+// Parameters:
+//   in     - The input value.
+//   center - The center of the bell curve.
+//   width  - The width (spread) of the bell curve.
+// Returns:
+//   The computed bell curve value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float bellCurve(float in, float center, float width) {
+    float distance = _fabs(in - center);
+    float exponent = -powf(distance, 2) / powf(width, 2);
+    return _expf(exponent);
+}
+
+//------------------------------------------------------------------------------
+// Function: bellCurveLooping
+// Description: Computes a looping bell curve to avoid discontinuities at the hue boundaries.
+// Parameters:
+//   in     - The input hue (normalized).
+//   center - The center of the bell curve.
+//   width  - The width of the bell curve.
+// Returns:
+//   The maximum bell curve value considering looped boundaries.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float bellCurveLooping(float in, float center, float width) {
+    float curve = bellCurve(in, center, width);
+    float startCurve = bellCurve(in, center - 1.0f, width);
+    float endCurve = bellCurve(in, center + 1.0f, width);
+    return _fmaxf(_fmaxf(curve, startCurve), endCurve);
+}
+
+
+//------------------------------------------------------------------------------
+// Function: wrapHue
+// Description: Wraps a hue value to the range [0, 1].
+// Parameters:
+//   hue - The input hue value.
+// Returns:
+//   The wrapped hue value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float wrapHue(float hue) {
+    return hue - _floorf(hue); // Ensure hue is in the range [0, 1]
+}
+
+//------------------------------------------------------------------------------
+// Function: calculate_saturation
+// Description: Calculates the saturation of an RGB color.
+// Parameters:
+//   rgb - The input RGB color as a float3.
+// Returns:
+//   The saturation value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float calculate_saturation(float3 rgb) {
+    float maxVal = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+    float minVal = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
+    return maxVal == 0.0f ? 0.0f : (maxVal - minVal) / maxVal;
+}
+
+
+//------------------------------------------------------------------------------
+// Function: find_max_component
+// Description: Returns the maximum component (R, G, or B) of a color.
+// Parameters:
+//   color - The input color as a float3.
+// Returns:
+//   The maximum channel value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float find_max_component(float3 color) {
+    return _fmaxf(_fmaxf(color.x, color.y), color.z);
+}
+
+//------------------------------------------------------------------------------
+// Function: luminance
+// Description: Computes the luminance (brightness) of an RGB color using Rec. 709 coefficients.
+// Parameters:
+//   rgb - The input RGB color as a float3.
+// Returns:
+//   The luminance value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float luminance(float3 rgb) {
+    return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
+}
+
+//------------------------------------------------------------------------------
+// Function: apply_per_channel_gamma
+// Description: Applies gamma correction individually to each channel of a color.
+// Parameters:
+//   color - The input color as a float3.
+//   exp   - The gamma exponents for each channel as a float3.
+// Returns:
+//   The gamma-corrected color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 apply_per_channel_gamma(float3 color, float3 exp) {
+    return make_float3(powf(color.x, exp.x), powf(color.y, exp.y), powf(color.z, exp.z));
+}
+
+//------------------------------------------------------------------------------
+// Function: compute_value_max_component
+// Description: Computes the maximum channel value of a color.
+// Parameters:
+//   color - The input color as a float3.
+// Returns:
+//   The maximum channel value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float compute_value_max_channel(float3 color) {
+    return find_max_component(color);
+}
+
+//------------------------------------------------------------------------------
+// Function: compute_density_mean
+// Description: Computes the mean (average) of the RGB components.
+// Parameters:
+//   color - The input color as a float3.
+// Returns:
+//   The average value of the components.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float compute_density_mean(float3 color) {
+    return (color.x + color.y + color.z) / 3.0f;
+}
+
+//------------------------------------------------------------------------------
+// Function: hueDistanceDegrees
+// Description: Calculates the shortest distance between two hue angles (in degrees),
+//              accounting for wrap-around at 360°.
+// Parameters:
+//   hueDeg1 - The first hue angle in degrees.
+//   hueDeg2 - The second hue angle in degrees.
+// Returns:
+//   The shortest angular distance in degrees.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float hueDistanceDegrees(float hueDeg1, float hueDeg2) {
+    float dist = _fabs(hueDeg1 - hueDeg2);
+    if (dist > 180.0f) {
+        dist = 360.0f - dist;
+    }
+    return dist;
+}
+
+//------------------------------------------------------------------------------
+// Function: bellCurveFalloff
+// Description: Computes a bell curve falloff based on hue distance (in degrees) using a Gaussian function.
+// Parameters:
+//   hueDeg       - The current hue in degrees.
+//   hueCenterDeg - The center hue for the falloff in degrees.
+//   falloffWidth - The falloff width in degrees.
+// Returns:
+//   The falloff value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float bellCurveFalloff(float hueDeg, float hueCenterDeg, float falloffWidth) {
+    // Ensure hueCenterDeg is within [0,360) range
+    hueCenterDeg = hueCenterDeg - _floorf(hueCenterDeg / 360.0f) * 360.0f;
+    if (hueCenterDeg < 0.0f) hueCenterDeg += 360.0f;
+
+    // Calculate hue distance in degrees, accounting for wrap-around
+    float hueDist = hueDistanceDegrees(hueDeg, hueCenterDeg);
+
+    // Calculate the exponent for the Gaussian function
+    float exponent = -powf(hueDist, 2) / (2.0f * powf(falloffWidth, 2));
+
+    return _expf(exponent);
+}
+
+//------------------------------------------------------------------------------
+// Function: smoothstepFalloff
+// Description: Computes a smoothstep falloff based on hue distance with a given falloff width in degrees.
+// Parameters:
+//   hueDeg       - The current hue in degrees.
+//   hueCenterDeg - The center hue for the falloff in degrees.
+//   falloffWidth - The falloff width in degrees.
+// Returns:
+//   The smoothstep falloff value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float smoothstepFalloff(float hueDeg, float hueCenterDeg, float falloffWidth) {
+    // Ensure hueCenterDeg is within [0,360) range
+    hueCenterDeg = hueCenterDeg - _floorf(hueCenterDeg / 360.0f) * 360.0f;
+    if (hueCenterDeg < 0.0f) hueCenterDeg += 360.0f;
+
+    // Calculate hue distance in degrees, accounting for wrap-around
+    float hueDist = hueDistanceDegrees(hueDeg, hueCenterDeg);
+    
+    // Normalize distance by falloff width
+    float x = _clampf(1.0f - (hueDist / falloffWidth), 0.0f, 1.0f);
+    
+    // Smoothstep function: 3x^2 - 2x^3
+    return x * x * (3.0f - 2.0f * x);
+}
+
+//------------------------------------------------------------------------------
+// Function: computeHueMask
+// Description: Computes a hue mask based on the hue distance from a center and a selected falloff curve.
+// Parameters:
+//   hueDeg       - The current hue in degrees.
+//   hueCenterDeg - The target hue center in degrees.
+//   falloffWidth - The falloff width in degrees.
+//   pCurveType   - The curve type selector (0 for smoothstep, otherwise bell curve).
+// Returns:
+//   The computed hue mask value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float computeHueMask(float hueDeg, float hueCenterDeg, float falloffWidth, float pCurveType) {
+    if (pCurveType == 0) {
+        return smoothstepFalloff(hueDeg, hueCenterDeg, falloffWidth);
+    } else {
+        return bellCurveFalloff(hueDeg, hueCenterDeg, falloffWidth);
+    }
+}
+
+//------------------------------------------------------------------------------
+// Saturation and Density Functions
+//------------------------------------------------------------------------------
+// Function: adjust_density
+// Description: Adjusts the density (brightness) of a color while preserving detail in saturated regions.
+//              It normalizes the color, applies gamma correction, and blends with the original based on a recovery mask.
+// Parameters:
+//   color         - The input RGB color as a float3.
+//   gamma         - Gamma correction factors as a float3.
+//   density_mixer - Controls the mix between the maximum channel and the average density.
+//   recovery      - Recovery factor for bright, saturated colors.
+// Returns:
+//   The density-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer, float recovery) {
+    float max_channel_value = compute_value_max_channel(color);
+    float3 normalized_color = color / _fmaxf(max_channel_value, 0.00001f);
+
+    float density = compute_density_mean(color);
+    density = mixf(_fmaxf(max_channel_value, 0.0f), _fmaxf(density, 0.0f), density_mixer - 1.0f);
+
+    // Calculate recovery mask for bright, saturated colors
+    float sat = calculate_saturation(color);
+    float recoveryMask = max_channel_value * sat;
+    float protectionStrength = recovery * _fminf(recoveryMask, 1.0f);
+
+    // Apply per-channel gamma and create density-adjusted color
+    float3 adjusted_color = apply_per_channel_gamma(normalized_color, gamma);
+    adjusted_color *= density;
+
+    // Clamp RGB values
+    adjusted_color.x = _fminf(_fmaxf(adjusted_color.x, 0.0f), 1.0f);
+    adjusted_color.y = _fminf(_fmaxf(adjusted_color.y, 0.0f), 1.0f);
+    adjusted_color.z = _fminf(_fmaxf(adjusted_color.z, 0.0f), 1.0f);
+
+    // Mix between adjusted and original based on protection strength
+    return mix3(adjusted_color, color, protectionStrength);
+}
+
+//------------------------------------------------------------------------------
+// Function: adjustVibrance
+// Description: Adjusts the vibrance of a color using a logarithmic falloff approach to protect extreme values.
+// Parameters:
+//   rgb      - The input RGB color as a float3.
+//   vibrance - The vibrance adjustment factor (1.0 implies no change).
+// Returns:
+//   The vibrance-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
+    vibrance -= 1.0f;
+    
+    // Get the maximum and minimum RGB channel values
+    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+    float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
+    
+    // Add small epsilon to prevent division by zero
+    float safeDivisor = _fmaxf(ach, EPSILON);
+    
+    // Calculate current saturation level with protection against very small values
+    float currentSaturation = (ach - minColor) / safeDivisor;
+    
+    // Ensure currentSaturation is in valid range [0,1]
+    currentSaturation = _fmaxf(0.0f, _fminf(1.0f, currentSaturation));
+    
+    float smoothFactor = 0.1f;
+    
+    // Protect log calculation from negative or zero values
+    float safeLogInput = _fmaxf(1.0f + currentSaturation, EPSILON);
+    
+    float adjustedVibranceEffect = vibrance > 0 ?
+        1.0f + (1.0f - currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput))) * vibrance :
+        1.0f + currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput)) * vibrance;
+    
+    // Compute distance with protection against division by zero
+    float3 distance;
+    if (ach < EPSILON) {
+        distance = make_float3(0.0f, 0.0f, 0.0f);
+    } else {
+        distance = (ach - rgb) / ach;
+    }
+    
+    distance *= adjustedVibranceEffect;
+    
+    // Calculate new RGB values with protected multiplication
+    float3 newRGB;
+    float safeAch = _fmaxf(ach, EPSILON);
+    newRGB.x = _fmaxf(_fminf(ach - distance.x * safeAch, 1.0f), 0.0f);
+    newRGB.y = _fmaxf(_fminf(ach - distance.y * safeAch, 1.0f), 0.0f);
+    newRGB.z = _fmaxf(_fminf(ach - distance.z * safeAch, 1.0f), 0.0f);
+    
+    return newRGB;
+}
+
+//------------------------------------------------------------------------------
+// Function: adjustSaturationWithMask
+// Description: Adjusts the saturation of a color using either a vibrance method or an achromatic method,
+//              then blends the result with the original color based on a mask.
+// Parameters:
+//   rgb       - The input RGB color as a float3.
+//   saturation- The saturation adjustment factor (1.0 implies no change).
+//   mask      - The mask weight (0 to 1) determining the strength of the adjustment.
+//   pMathType - Selector for math type (1 for vibrance-based, otherwise achromatic).
+// Returns:
+//   The saturation-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 adjustSaturationWithMask(float3 rgb, float saturation, float mask, int pMathType) {
+    float3 newRGB;
+    if (pMathType == 1) {
+        // Use vibrance adjustment
+        newRGB = adjustVibrance(rgb, saturation);
+    } else {
+        // Achromatic saturation adjustment logic
+        saturation -= 1.0f;
+
+        float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+        float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
+        distance *= (1.0f + saturation);
+
+        newRGB = ach - distance * _fabs(ach);
+
+        // Clamp the RGB values to ensure they stay within [0.0, 1.0]
+        newRGB.x = _fmaxf(newRGB.x, 0.0f);
+        newRGB.y = _fmaxf(newRGB.y, 0.0f);
+        newRGB.z = _fmaxf(newRGB.z, 0.0f);
+    }
+    // Return the adjusted RGB values with mask applied
+    return mix3(rgb, newRGB, mask);
+}
+
+//------------------------------------------------------------------------------
+// Function: adjustDensityWithMask
+// Description: Applies a density adjustment to a color and blends it with the original based on a mask.
+// Parameters:
+//   rgb             - The input RGB color as a float3.
+//   density         - The density adjustment factor.
+//   mask            - The mask weight (0 to 1) for blending.
+//   densityRecovery - Recovery factor for density.
+// Returns:
+//   The density-adjusted color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 adjustDensityWithMask(float3 rgb, float density, float mask, float densityRecovery) {
+    // Set gamma to (1.0, 1.0, 1.0) as a neutral adjustment
+    float3 gamma = make_float3(1.0f, 1.0f, 1.0f);
+    float3 adjustedRGB = adjust_density(rgb, gamma, density, densityRecovery);
+    // Blend the density adjustment based on the mask
+    return mix3(rgb, adjustedRGB, mask);
+}
+
+//------------------------------------------------------------------------------
+// Function: adjustHueRotation
+// Description: Rotates the hue of a color by converting RGB to HSV, applying a hue shift, then converting back.
+// Parameters:
+//   rgb      - The input RGB color as a float3.
+//   hueShift - The hue shift in degrees.
+// Returns:
+//   The hue-shifted RGB color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 adjustHueRotation(float3 rgb, float hueShift) {
+    // Convert RGB to HSL
+    float3 hsl = RGB_to_HSV(rgb);
+
+    // Normalize hue to [0,1]
+    hsl.x = hsl.x - _floorf(hsl.x);
+    if (hsl.x < 0.0f) hsl.x += 1.0f;
+
+    // Apply hue shift
+    hsl.x += hueShift / 360.0f; // Convert hueShift from degrees to normalized hue
+    hsl.x = hsl.x - _floorf(hsl.x);
+    if (hsl.x < 0.0f) hsl.x += 1.0f;
+
+    // Convert back to RGB
+    float3 adjustedRGB = HSV_to_RGB(hsl);
+
+    // Clamp RGB values to [0,1]
+    adjustedRGB.x = _fminf(_fmaxf(adjustedRGB.x, 0.0f), 1.0f);
+    adjustedRGB.y = _fminf(_fmaxf(adjustedRGB.y, 0.0f), 1.0f);
+    adjustedRGB.z = _fminf(_fmaxf(adjustedRGB.z, 0.0f), 1.0f);
+
+    return adjustedRGB;
+}
+
+//------------------------------------------------------------------------------
+// Main Transformation Function
+//------------------------------------------------------------------------------
+// Function: transform
+// Description: Main transformation function that adjusts hue-specific color properties.
+//              The process includes:
+//              1. Converting the input RGB color to HSV to obtain the hue in degrees.
+//              2. Computing individual hue masks for red, skintone, yellow, green, cyan, blue, and magenta.
+//              3. Compensating for overlap among the hue masks.
+//              4. Applying density and saturation adjustments for each hue region based on their masks.
+//              5. Combining hue shifts from all regions.
+//              6. Applying a final hue rotation if needed.
+//              7. Applying highlight and shadow recovery by blending with the original color.
+// Parameters:
+//   p_Width, p_Height - Full image dimensions.
+//   p_X, p_Y        - Pixel coordinates.
+//   p_R, p_G, p_B   - Input red, green, and blue channel values.
+// Returns:
+//   The final output color (float3) after all hue-specific adjustments.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    float3 originalRGB = make_float3(p_R, p_G, p_B);
+    float3 adjustedRGB = originalRGB;
+
+    // Compute masks based on the input RGB
+    float3 hsvOriginal = RGB_to_HSV(originalRGB);
+    float hueDegOriginal = hsvOriginal.x * 360.0f;
+
+    // Compute masks for each hue
+    float maskRed = computeHueMask(hueDegOriginal, 0.0f, falloffRed, pCurveType);
+    float maskSkin = computeHueMask(hueDegOriginal, 30.0f, falloffSkin, pCurveType);
+    float maskYellow = computeHueMask(hueDegOriginal, 60.0f, falloffYellow, pCurveType);
+    float maskGreen = computeHueMask(hueDegOriginal, 120.0f, falloffGreen, pCurveType);
+    float maskCyan = computeHueMask(hueDegOriginal, 180.0f, falloffCyan, pCurveType);
+    float maskBlue = computeHueMask(hueDegOriginal, 240.0f, falloffBlue, pCurveType);
+    float maskMagenta = computeHueMask(hueDegOriginal, 300.0f, falloffMagenta, pCurveType);
+
+    // Calculate total mask weight for overlap compensation
+    float totalMask = maskRed + maskSkin + maskYellow + maskGreen + maskCyan + maskBlue + maskMagenta;
+
+    // Only adjust overlap compensation when there is significant overlap
+    if (totalMask > 1.0f + EPSILON) {
+        float overlapFactor = _powf(1.0f / totalMask, 0.5f); // Square root for gentler compensation
+        
+        // Scale masks to compensate for overlap while preserving strength
+        maskRed *= overlapFactor;
+        maskSkin *= overlapFactor;
+        maskYellow *= overlapFactor;
+        maskGreen *= overlapFactor;
+        maskCyan *= overlapFactor;
+        maskBlue *= overlapFactor;
+        maskMagenta *= overlapFactor;
+    }
+
+    // Apply density adjustments
+    if (_fabs(densityRed - 1.0f) > EPSILON) 
+        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityRed, maskRed, densityRecovery);
+    if (_fabs(densitySkin - 1.0f) > EPSILON)
+        adjustedRGB = adjustDensityWithMask(adjustedRGB, densitySkin, maskSkin, densityRecovery);
+    if (_fabs(densityYellow - 1.0f) > EPSILON)
+        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityYellow, maskYellow, densityRecovery);
+    if (_fabs(densityGreen - 1.0f) > EPSILON)
+        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityGreen, maskGreen, densityRecovery);
+    if (_fabs(densityCyan - 1.0f) > EPSILON)
+        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityCyan, maskCyan, densityRecovery);
+    if (_fabs(densityBlue - 1.0f) > EPSILON)
+        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityBlue, maskBlue, densityRecovery);
+    if (_fabs(densityMagenta - 1.0f) > EPSILON)
+        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityMagenta, maskMagenta, densityRecovery);
+
+    // Apply saturation adjustments
+    if (_fabs(saturationRed - 1.0f) > EPSILON)
+        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationRed, maskRed, pMathType);
+    if (_fabs(saturationSkin - 1.0f) > EPSILON)
+        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationSkin, maskSkin, pMathType);
+    if (_fabs(saturationYellow - 1.0f) > EPSILON)
+        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationYellow, maskYellow, pMathType);
+    if (_fabs(saturationGreen - 1.0f) > EPSILON)
+        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationGreen, maskGreen, pMathType);
+    if (_fabs(saturationCyan - 1.0f) > EPSILON)
+        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationCyan, maskCyan, pMathType);
+    if (_fabs(saturationBlue - 1.0f) > EPSILON)
+        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationBlue, maskBlue, pMathType);
+    if (_fabs(saturationMagenta - 1.0f) > EPSILON)
+        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationMagenta, maskMagenta, pMathType);
+
+    // Apply hue shifts
+    float totalHueShift = 
+        hueShiftRed * maskRed +
+        hueShiftSkin * maskSkin +
+        hueShiftYellow * maskYellow +
+        hueShiftGreen * maskGreen +
+        hueShiftCyan * maskCyan +
+        hueShiftBlue * maskBlue +
+        hueShiftMagenta * maskMagenta;
+
+    if (_fabs(totalHueShift) > EPSILON) {
+        adjustedRGB = adjustHueRotation(adjustedRGB, totalHueShift);
+    }
+
+    // Apply highlight and shadow recovery
+    float luma = luminance(originalRGB);
+    float highlightMaskStrength = luma * highlightRecovery;
+    float shadowMaskStrength = (1.0f - luma) * shadowRecovery;
+
+    float sat = calculate_saturation(originalRGB);
+    float brightness = compute_value_max_channel(originalRGB);
+    float densityRecoveryMask = densityRecovery * _fminf(brightness * sat, 1.0f);
+
+    float recoveryMask = _fminf(highlightMaskStrength + shadowMaskStrength + densityRecoveryMask, 1.0f);
+
+    float3 outRGB = mix3(adjustedRGB, originalRGB, recoveryMask);
+
+    if (showMask) {
+        float displayMask = totalMask;
+        return make_float3(displayMask, displayMask, displayMask);
+    }
+
+    return outRGB;
+}
