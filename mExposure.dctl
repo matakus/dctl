@@ -1,47 +1,368 @@
-#line 2 // Debugging line
+#line 2
 
-// Exposure DCTL // // 1.04 // Matt.C
-// Adjsuts the Exposure of an image with masks.
+// Exposure DCTL v1.05
+// Author: Matt.C
+// Description: Adjusts exposure and saturation in highlights and shadows
+// Uses masks to independently control adjustments in different luminance ranges
 
 #include "zCCTF.dctl"
 
-// UI Parameters
-DEFINE_UI_PARAMS(p_Exp, Exposure, DCTLUI_SLIDER_FLOAT, 0, -7, 7, 0.001)               // Default is 7 Stops
-DEFINE_UI_PARAMS(p_ExpHigh, Highlight + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1)     // Default is 5 Stops
-DEFINE_UI_PARAMS(p_ExpShad, Shadow + / -, DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.1)        // Default is 5 Stops
-DEFINE_UI_PARAMS(maskStrenHigh, High Mask Strength, DCTLUI_SLIDER_FLOAT, 0.333, 0, 1, 0.01) // Default is 0.333
-DEFINE_UI_PARAMS(maskStrenShad, Shad Mask Strength, DCTLUI_SLIDER_FLOAT, 0.333, 0, 1, 0.01) // Default is 0.333
-DEFINE_UI_PARAMS(HighlightSaturation, Highlight Saturation, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01) // Highlight Saturation slider
-DEFINE_UI_PARAMS(ShadowSaturation, Shadow Saturation, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01) // Shadow Saturation slider
-DEFINE_UI_PARAMS(chanTypeH, Highlight Mask, DCTLUI_COMBO_BOX, 0, {GREY_h, RED_h, GREEN_h, BLUE_h}, {Luma, Red Channel, Green Channel, Blue Channel}) // Default is Luma
-DEFINE_UI_PARAMS(chanTypeS, Shadow Mask, DCTLUI_COMBO_BOX, 0, {GREY_s, RED_s, GREEN_s, BLUE_s}, {Luma, Red Channel, Green Channel, Blue Channel}) // Default is Luma
+//------------------------------------------------------------------------------
+// UI PARAMETERS
+//------------------------------------------------------------------------------
+
+// Exposure Controls
+DEFINE_UI_PARAMS(global_exposure, Exposure, DCTLUI_SLIDER_FLOAT, 0, -7, 7, 0.01)
+DEFINE_UI_TOOLTIP(global_exposure, "Adjusts overall exposure in stops (+/-).")
+
+DEFINE_UI_PARAMS(highlight_exposure, Highlight + / - , DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.01)
+DEFINE_UI_TOOLTIP(highlight_exposure, "Adjusts exposure in highlight areas (+/- stops).")
+
+DEFINE_UI_PARAMS(shadow_exposure, Shadow + / - , DCTLUI_SLIDER_FLOAT, 0, -5, 5, 0.01)
+DEFINE_UI_TOOLTIP(shadow_exposure, "Adjusts exposure in shadow areas (+/- stops).")
+
+// Threshold Controls
+
+DEFINE_UI_PARAMS(highlight_threshold, Highlight Threshold, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1.0, 0.01)
+DEFINE_UI_TOOLTIP(highlight_threshold, "Sets the threshold for highlight detection.")
+
+DEFINE_UI_PARAMS(shadow_threshold, Shadow Threshold, DCTLUI_SLIDER_FLOAT, 0.5, 0, 1.0, 0.01)
+DEFINE_UI_TOOLTIP(shadow_threshold, "Sets the threshold for shadow detection.")
+
+// Saturation Controls
+
+DEFINE_UI_PARAMS(highlightSaturation, Highlight Saturation, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01)
+DEFINE_UI_TOOLTIP(highlightSaturation, "Adjusts saturation in highlight areas.")
+
+DEFINE_UI_PARAMS(shadowSaturation, Shadow Saturation, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01)
+DEFINE_UI_TOOLTIP(shadowSaturation, "Adjusts saturation in shadow areas.")
+
+// Mask Controls
+DEFINE_UI_PARAMS(chanTypeH, Highlight Mask, DCTLUI_COMBO_BOX, 0, {GREY_h, RED_h, GREEN_h, BLUE_h}, {Luma, Red Channel, Green Channel, Blue Channel})
+DEFINE_UI_TOOLTIP(chanTypeH, "Selects which channel to use for highlight mask generation.")
+
+DEFINE_UI_PARAMS(chanTypeS, Shadow Mask, DCTLUI_COMBO_BOX, 0, {GREY_s, RED_s, GREEN_s, BLUE_s}, {Luma, Red Channel, Green Channel, Blue Channel})
+DEFINE_UI_TOOLTIP(chanTypeS, "Selects which channel to use for shadow mask generation.")
+
+// Display Controls
 DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)
-DEFINE_UI_PARAMS(toggleMask, On: High | Off: Shad, DCTLUI_CHECK_BOX, 1)
-// Default is DaVinci Intermediate
-DEFINE_UI_PARAMS(p_TransferFunction, Transfer Function, DCTLUI_COMBO_BOX, 10, {aces_cc, aces_cct, appleLog, arriLogC3, arriLogC4, blackmagicFilmGen5, canonlog, canonlog2, canonlog3, cineon, davinciIntermediate, djiDlog, filmlightTlog, flog, flog2, goProProtune, leicaLog, lin, nikonNlog, panasonicVlog, redlog3g10, sonySlog, sonySlog2, sonySlog3}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen 5, Canon Log, Canon Log 2, Canon Log 3, Cineon Film Log, DaVinci Intermediate, DJI D-Log, Filmlight T-Log, FujiFilm F-Log, FujiFilm F-Log2, GoPro Protune, Leica L-Log, Linear, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
+DEFINE_UI_TOOLTIP(showMask, "Toggle to display the current mask.")
 
-// Helper Functions
+DEFINE_UI_PARAMS(maskSelect, On: Highights | Off: Shadows, DCTLUI_CHECK_BOX, 1)
+DEFINE_UI_TOOLTIP(maskSelect, "Select which mask to view when View Mask is enabled.")
 
-// Ensure powf behaves consistently across different operating systems
+// Color Space Control
+DEFINE_UI_PARAMS(p_TransferFunction, Transfer Function, DCTLUI_COMBO_BOX, 10 {aces_cc, aces_cct, appleLog, arriLogC3, arriLogC4, blackmagicFilmGen5, canonlog, canonlog2, canonlog3, cineon, davinciIntermediate, djiDlog, filmlightTlog, flog, flog2, goProProtune, leicaLog, lin, nikonNlog, panasonicVlog, redlog3g10, sonySlog, sonySlog2, sonySlog3}, {ACEScc, ACEScct, Apple Log, Arri LogC3, Arri LogC4, Blackmagic Film Gen 5, Canon Log, Canon Log 2, Canon Log 3, Cineon Film Log, DaVinci Intermediate, DJI D-Log, Filmlight T-Log, FujiFilm F-Log, FujiFilm F-Log2, GoPro Protune, Leica L-Log, Linear, Nikon N-Log, Panasonic V-Log, Red Log3G10, Sony S-Log, Sony S-Log2, Sony S-Log3})
+DEFINE_UI_TOOLTIP(p_TransferFunction, "Selects the color space transfer function to use.")
+
+// Math Controls
+DEFINE_UI_PARAMS(maskMethod, Mask Method, DCTLUI_COMBO_BOX, 0, {p_Exponential, p_Natural}, {Exponential, Natural})
+DEFINE_UI_TOOLTIP(maskMethod, "Selects the method used for generating masks.")
+
+//------------------------------------------------------------------------------
+// REFERENCE VALUES
+//------------------------------------------------------------------------------
+
+// Small value used to prevent division by zero
+// Used in calculations where denominator could be very close to zero
+
+#define EPSILON 1e-6f
+
+//------------------------------------------------------------------------------
+// HELPER FUNCTIONS
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// Function: powf
+// Description: Computes the power function for a float base and exponent,
+//              ensuring that the sign of the base is preserved.
+// Parameters:
+//   base - The base value.
+//   exp  - The exponent value.
+// Returns:
+//   The result of raising base to the power exp, preserving the base's sign.
+//------------------------------------------------------------------------------
+
 __DEVICE__ float powf(float base, float exp) {
     return _copysignf(_powf(_fabs(base), exp), base);
 }
 
-__DEVICE__ float3 exposureFunc(float3 in, float stops) {
-    return in * _powf(2.0f, stops);
+//------------------------------------------------------------------------------
+// Function: smoothstep
+// Description: Smooth Hermite interpolation between 0 and 1
+// Creates smooth S-curve with continuous first derivative
+// Parameters:
+//   x - Input value (will be clamped to 0-1)
+// Returns: Smoothly interpolated value between 0 and 1
+//------------------------------------------------------------------------------
+
+__DEVICE__ float smoothstep(float x) {
+    x = _clampf(x, 0.0f, 1.0f);
+    return 3.0f * powf(x, 2.0f) - 2.0f * powf(x, 3.0f);
 }
 
-__DEVICE__ float luminance(float r, float g, float b) {
+//------------------------------------------------------------------------------
+// Function: exposureFunc
+// Description: Applies exposure adjustment in stops
+// Uses power of 2 to match photographic exposure system
+// Parameters:
+//   in    - Input color values
+//   stops - Exposure adjustment in stops (±)
+// Returns: Exposure adjusted color
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 exposureFunc(float3 in, float stops) {
+    return in * powf(2.0f, stops);
+}
+
+//------------------------------------------------------------------------------
+// Function: calc_luminance
+// Description: Calculates perceived brightness using Rec.709 coefficients
+// Parameters:
+//   r, g, b - Input color channels
+// Returns: Perceptual luminance value
+//------------------------------------------------------------------------------
+
+__DEVICE__ float calc_luminance(float r, float g, float b) {
     return 0.2126f * r + 0.7152f * g + 0.0722f * b;
 }
 
+//------------------------------------------------------------------------------
+// Function: getChannelValue
+// Description: Extracts single channel or calculates Rec.2020 luminance
+// Parameters:
+//   rgb      - Input color
+//   chanType - Channel selection (0=Luma, 1=Red, 2=Green, 3=Blue)
+// Returns: Selected channel value or luminance
+//------------------------------------------------------------------------------
+
+__DEVICE__ float getChannelValue(float3 rgb, int chanType) {
+    switch(chanType) {
+        case 0: // GREY/Luma
+            return (0.212639f * rgb.x) + (0.715169f * rgb.y) + (0.072192f * rgb.z);
+        case 1: // RED
+            return rgb.x;
+        case 2: // GREEN
+            return rgb.y;
+        case 3: // BLUE
+            return rgb.z;
+        default:
+            return (0.212639f * rgb.x) + (0.715169f * rgb.y) + (0.072192f * rgb.z);
+    }
+}
+
+//------------------------------------------------------------------------------
+// Function: maskFunc
+// Description: Generates a mask based on a selected channel with strength adjustment
+// Parameters:
+//   r, g, b - Input color channels
+//   chanType - Channel selection (0=Luma, 1=Red, 2=Green, 3=Blue)
+//   stren - Strength of the mask (0.0 to 1.0)
+//   invert - Whether to invert the final mask
+// Returns: Mask value between 0 and 1
+//------------------------------------------------------------------------------
+
 __DEVICE__ float maskFunc(float r, float g, float b, int chanType, float stren, bool invert) {
+    // Adjust strength with non-linear response for more control
+    // For stren <= 1/6, linear scaling
+    // For stren > 1/6, exponential scaling (2^x)
     float adjustedStren = stren * 6.0f;
-    adjustedStren = adjustedStren > 1.0f ? _powf(2.0f, adjustedStren - 1.0f) : adjustedStren;
-    float lum = invert ? _powf(1.0f - luminance(r, g, b), adjustedStren) : _powf(luminance(r, g, b), adjustedStren);
-    float mask = chanType == 0 ? lum : chanType == 1 ? _powf(invert ? 1.0f - r : r, adjustedStren) : chanType == 2 ? _powf(invert ? 1.0f - g : g, adjustedStren) : _powf(invert ? 1.0f - b : b, adjustedStren);
+    adjustedStren = adjustedStren > 1.0f ? 
+        _powf(2.0f, adjustedStren - 1.0f) : // Exponential scaling
+        adjustedStren;                       // Linear scaling
+    
+    // Select channel for mask generation
+    // Default to luminance if invalid channel type
+    float value;
+    
+    // Select channel based on chanType
+    switch(chanType) {
+        case 0: // GREY (Luma)
+            value = calc_luminance(r, g, b);
+            break;
+        case 1: // RED
+            value = r;
+            break;
+        case 2: // GREEN
+            value = g;
+            break;
+        case 3: // BLUE
+            value = b;
+            break;
+        default:
+            value = calc_luminance(r, g, b);
+    }
+    
+    // Apply inversion if needed
+    if (invert) {
+        value = 1.0f - value;
+    }
+    
+    // Apply strength adjustment
+    float mask = _powf(value, adjustedStren);
     return _saturatef(mask);
 }
+
+//------------------------------------------------------------------------------
+// Function: calculateNaturalMask
+// Description: Generates a mask using natural log-space thresholds
+// Parameters:
+//   input_metric - Input value to generate mask from (usually luminance)
+//   threshold_stops - Threshold in stops for mask generation
+//   computedFeathering - Amount of feathering to apply to the mask edges
+// Returns: Mask value between 0 and 1
+//------------------------------------------------------------------------------
+
+__DEVICE__ float calculateNaturalMask(float input_metric, float threshold_stops, float computedFeathering) {
+    float threshold_min = 0.18f * _exp2f(threshold_stops - 0.45f * computedFeathering);
+    float threshold_max = 0.18f * _exp2f(threshold_stops + 0.25f * computedFeathering);
+
+    float input_metric_log = _log2f(_fmaxf(input_metric, 0.0f));
+    float threshold_min_log = _log2f(threshold_min);
+    float threshold_max_log = _log2f(threshold_max);
+
+    if (input_metric < threshold_min) {
+        return 1.0f;
+    } else if (input_metric > threshold_max) {
+        return 0.0f;
+    } else {
+        float t = (input_metric_log - threshold_min_log) / (threshold_max_log - threshold_min_log);
+        t = _clampf(t, 0.0f, 1.0f);
+        return 1.0f - smoothstep(t);
+    }
+}
+
+//------------------------------------------------------------------------------
+// Function: adjustSaturation
+// Description: Basic RGB saturation adjustment using distance from maximum value
+// Parameters:
+//   rgb - Input color as float3 (R, G, B)
+//   sat - Saturation adjustment factor (1.0 = no change)
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 adjustSaturation(float3 rgb, float sat) {
+    // Normalize saturation parameter to -1 to 1 range
+    sat -= 1.0f;
+    
+    // Find brightest color component (achromatic reference)
+    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+    
+    // Calculate distance of each channel from achromatic value
+    // For black pixels (ach == 0), return zero distance
+    // Otherwise, calculate normalized distance from achromatic
+    float3 distance = ach == 0.0f ? 
+        make_float3(0.0f, 0.0f, 0.0f) : 
+        (ach - rgb) / _fabs(ach);
+    
+    // Scale distance by saturation adjustment
+    // (1.0f + sat) means: 
+    // - When sat < 0, reduces distance (desaturates)
+    // - When sat > 0, increases distance (saturates)
+    distance *= (1.0f + sat);
+    
+    // Reconstruct RGB by subtracting adjusted distances from achromatic
+    float3 newRGB = ach - distance * _fabs(ach);
+    
+    return newRGB;
+}
+
+//------------------------------------------------------------------------------
+// Function: adjustNaturalSaturation
+// Description: Energy-preserving saturation adjustment using luminance ratios
+// Parameters:
+//   rgb - Input color as float3 (R, G, B)
+//   sat - Saturation adjustment factor (1.0 = no change)
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 adjustNaturalSaturation(float3 rgb, float sat) {
+    // Rec.709 luminance coefficients for proper color weighting
+    const float LUM_R = 0.2126f;
+    const float LUM_G = 0.7152f;
+    const float LUM_B = 0.0722f;
+    
+    // Calculate perceptual luminance (energy-preserving)
+    float luminance = LUM_R * rgb.x + LUM_G * rgb.y + LUM_B * rgb.z;
+    
+    // Early exit for black pixels
+    if (luminance < EPSILON) {
+        return make_float3(0.0f, 0.0f, 0.0f);
+    }
+    
+    // Calculate how much each channel contributes relative to luminance
+    // Values > 1 mean channel is brighter than luminance
+    // Values < 1 mean channel is darker than luminance
+    float3 ratios = make_float3(
+        rgb.x / luminance,
+        rgb.y / luminance,
+        rgb.z / luminance
+    );
+    
+    // Calculate how far each ratio deviates from neutral (1.0)
+    // Larger deviations indicate more saturated colors
+    float3 deviations = make_float3(
+        _fabs(ratios.x - 1.0f),
+        _fabs(ratios.y - 1.0f),
+        _fabs(ratios.z - 1.0f)
+    );
+    
+    // Use maximum deviation as measure of current saturation
+    float max_deviation = _fmaxf(deviations.x, _fmaxf(deviations.y, deviations.z));
+    
+    // Normalize sat to -1 to 1 range
+    float adjusted_sat = sat - 1.0f;
+    float saturation_factor;
+    
+    if (adjusted_sat > 0.0f) {
+        // For increasing saturation, apply multiple rolloffs
+        
+        // Convert max_deviation to 0-1 range for rolloff calculation
+        float current_sat = max_deviation / (max_deviation + 1.0f);
+        
+        // First rolloff: reduce effect on already saturated colors
+        float rolloff = (1.0f - current_sat);
+        
+        // Smooth the rolloff curve for more natural transition
+        rolloff = _powf(rolloff, 0.5f);
+        
+        // Second rolloff: exponential falloff based on deviation
+        float exp_rolloff = _expf(-2.0f * max_deviation);
+        
+        // Combine rolloffs and calculate final saturation factor
+        float combined_rolloff = rolloff * exp_rolloff;
+        saturation_factor = 1.0f + (adjusted_sat * combined_rolloff);
+    } else {
+        // For decreasing saturation, use simple linear adjustment
+        saturation_factor = 1.0f + adjusted_sat;
+    }
+    
+    // Apply saturation by adjusting how far ratios deviate from neutral
+    float3 adjusted_ratios = make_float3(
+        1.0f + (ratios.x - 1.0f) * saturation_factor,
+        1.0f + (ratios.y - 1.0f) * saturation_factor,
+        1.0f + (ratios.z - 1.0f) * saturation_factor
+    );
+    
+    // Convert back to RGB while preserving original luminance
+    float3 result = make_float3(
+        adjusted_ratios.x * luminance,
+        adjusted_ratios.y * luminance,
+        adjusted_ratios.z * luminance
+    );
+    
+    return result;
+}
+
+//------------------------------------------------------------------------------
+// COLOR SPACE CONVERSION FUNCTIONS
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Function: convertToLinear
+// Description: Converts input from various log formats to linear space
+// Parameters:
+//   in          - Input color in log space
+//   transferFunc - Selected transfer function
+// Returns: Color values in linear space
+//------------------------------------------------------------------------------
 
 __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
     switch (transferFunc) {
@@ -62,7 +383,7 @@ __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
         case flog2:               return logToLinFLog2(in);
         case goProProtune:        return logToLinProtune(in);
         case leicaLog:            return logToLinLeicaLog(in);
-        case lin:                 return in; // Linear input, no conversion
+        case lin:                 return in;
         case nikonNlog:           return logToLinNLog(in);
         case panasonicVlog:       return logToLinVLog(in);
         case redlog3g10:          return logToLinRedLog3g10(in);
@@ -71,6 +392,15 @@ __DEVICE__ float3 convertToLinear(float3 in, int transferFunc) {
         case sonySlog3:           return logToLinSonySLog3(in);
     }
 }
+
+//------------------------------------------------------------------------------
+// Function: convertToLog
+// Description: Converts input from linear space to various log formats
+// Parameters:
+//   in          - Input color in linear space
+//   transferFunc - Selected transfer function
+// Returns: Color values in selected log space
+//------------------------------------------------------------------------------
 
 __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
     switch (transferFunc) {
@@ -91,7 +421,7 @@ __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
         case flog2:               return linToLogFLog2(in);
         case goProProtune:        return linToLogProtune(in);
         case leicaLog:            return linToLogLeicaLog(in);
-        case lin:                 return in; // Linear input, no conversion
+        case lin:                 return in;
         case nikonNlog:           return linToLogNLog(in);
         case panasonicVlog:       return linToLogVLog(in);
         case redlog3g10:          return linToLogRedLog3g10(in);
@@ -101,62 +431,111 @@ __DEVICE__ float3 convertToLog(float3 in, int transferFunc) {
     }
 }
 
-// Adjust saturation function
-__DEVICE__ float3 adjustSaturation(float3 rgb, float sat) {
-    sat -= 1.0f; // Offset saturation slider for adjustment
+//------------------------------------------------------------------------------
+// MAIN TRANSFORMATION FUNCTION
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// Function: transform
+// Description: Main image transformation function that adjusts highlights and shadows
+// The process includes:
+// 1. Converting input to linear space and applying global exposure
+// 2. Processing using either Natural or Exponential masking method:
+//    Natural Method:
+//    - Generates masks using luminance-based thresholds
+//    - Applies exposure adjustments in linear space
+//    - Applies saturation adjustments
+//    - Blends results with masks
+//    Exponential Method:
+//    - Processes highlights and shadows separately
+//    - Applies exposure and saturation in appropriate color spaces
+//    - Uses channel-based masks for blending
+// Parameters:
+//   p_Width, p_Height - Full image dimensions
+//   p_X, p_Y         - Pixel coordinates
+//   p_R, p_G, p_B    - Input red, green, and blue channel values
+// Returns:
+//   The final adjusted color after all processing
+//------------------------------------------------------------------------------
 
-    // Get the maximum channel value (achromatic color)
-    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));                                  
-    float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
-    distance *= (1.0f + sat);
-
-    // Compute new RGB values based on saturation adjustment
-    float3 newRGB = ach - distance * _fabs(ach);
-
-    return newRGB;
-}
-
-// Transform image
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    // Step 1: Initial Setup and Color Space Conversion
     float3 in = make_float3(p_R, p_G, p_B);
+    float3 inRGB = convertToLinear(in, p_TransferFunction);
+    float3 input = exposureFunc(inRGB, global_exposure);
 
-    // Convert to linear
-    float3 lin = convertToLinear(in, p_TransferFunction);
-
-    // Apply global exposure
-    float3 globalExp = exposureFunc(lin, p_Exp);
-    float3 logGlobalExp = convertToLog(globalExp, p_TransferFunction);
-
-    // Adjust highlight exposure
-    float3 expHigh = exposureFunc(globalExp, p_ExpHigh);
-    
-    // Convert to log space after adjusting highlight exposure
-    float3 logHigh = convertToLog(expHigh, p_TransferFunction);
-
-    // Apply saturation adjustment using the Highlight Saturation slider
-    float3 satHigh = adjustSaturation(logHigh, HighlightSaturation);  // Use the slider value
-    
-    // Apply highlight mask
-    float maskH = maskFunc(in.x, in.y, in.z, chanTypeH, maskStrenHigh, false);
-    float3 maskedHigh = satHigh * maskH + logGlobalExp * (1.0f - maskH);
-
-    // Adjust shadow exposure
-    float3 expShad = exposureFunc(globalExp, p_ExpShad);
-    float3 logShad = convertToLog(expShad, p_TransferFunction);
-
-    // Apply saturation adjustment using the Shadow Saturation slider
-    float3 satShad = adjustSaturation(logShad, ShadowSaturation);  // Use the slider value
-    
-    // Apply shadow mask
-    float maskS = maskFunc(in.x, in.y, in.z, chanTypeS, maskStrenShad, true);
-    float3 maskedShad = satShad * maskS + maskedHigh * (1.0f - maskS);
-
-    // Optionally show the mask if enabled
-    if (showMask) {
-        return toggleMask ? make_float3(maskH, maskH, maskH) : make_float3(maskS, maskS, maskS);
+    if (maskMethod == p_Natural) {
+        //----------------------------------------------------------------------
+        // Natural Masking Method
+        //----------------------------------------------------------------------
+        
+        // Calculate input luminance using Rec.2020 coefficients
+        float input_metric = (0.212639f * input.x) + (0.715169f * input.y) + (0.072192f * input.z);
+        
+        // Map threshold values to appropriate exposure ranges
+        float mapped_highlight_threshold = -5.0f + highlight_threshold * 15.0f;
+        float mapped_shadow_threshold = 5.0f - shadow_threshold * 15.0f;
+        
+        // Calculate feathering values for smooth transitions
+        float shadow_feathering = -1.5f * mapped_shadow_threshold + 30.0f;
+        float highlight_feathering = -1.5f * mapped_highlight_threshold + 30.0f;
+        
+        // Generate masks using natural log-space calculations
+        float shadowMask = calculateNaturalMask(input_metric, mapped_shadow_threshold, shadow_feathering);
+        float highlightMask = 1.0f - calculateNaturalMask(input_metric, mapped_highlight_threshold, highlight_feathering);
+        
+        // Apply exposure adjustments in linear space
+        float3 shadow_exposed = exposureFunc(input, shadow_exposure);
+        float3 highlight_exposed = exposureFunc(input, highlight_exposure);
+        
+        // Apply saturation adjustments
+        float3 shadow_satAdjusted = adjustNaturalSaturation(shadow_exposed, shadowSaturation);
+        float3 highlight_satAdjusted = adjustNaturalSaturation(highlight_exposed, highlightSaturation);
+        
+        // Blend results using masks
+        float3 result = input;
+        result = _mix(result, shadow_satAdjusted, shadowMask);
+        result = _mix(result, highlight_satAdjusted, highlightMask);
+        
+        // Convert final result to log space
+        float3 final = convertToLog(result, p_TransferFunction);
+        
+        // Display mask if requested
+        if (showMask) {
+            float maskToShow = (maskSelect == 0) ? shadowMask : highlightMask;
+            return make_float3(maskToShow, maskToShow, maskToShow);
+        }
+        
+        return final;
+    } else {
+        //----------------------------------------------------------------------
+        // Exponential Masking Method
+        //----------------------------------------------------------------------
+        
+        // Convert global exposure result to log space
+        float3 logGlobalExp = convertToLog(input, p_TransferFunction);
+        
+        // Process highlights
+        float3 expHigh = exposureFunc(input, highlight_exposure);          // Adjust exposure in linear
+        float3 logHigh = convertToLog(expHigh, p_TransferFunction);       // Convert to log space
+        float3 satHigh = adjustSaturation(logHigh, highlightSaturation);  // Apply saturation in log
+        float maskH = maskFunc(p_R, p_G, p_B, chanTypeH, highlight_threshold, false);
+        float3 maskedHigh = _mix(logGlobalExp, satHigh, maskH);
+        
+        // Process shadows
+        float3 expShad = exposureFunc(input, shadow_exposure);
+        float3 logShad = convertToLog(expShad, p_TransferFunction);
+        float3 satShad = adjustSaturation(logShad, shadowSaturation);
+        float maskS = maskFunc(p_R, p_G, p_B, chanTypeS, shadow_threshold, true);
+        
+        // Blend results
+        float3 result = _mix(maskedHigh, satShad, maskS);
+        
+        // Display mask if requested
+        if (showMask) {
+            float maskToShow = maskSelect ? maskH : maskS;
+            return make_float3(maskToShow, maskToShow, maskToShow);
+        }
+        
+        return result;
     }
-
-    // Return the final result
-    return maskedShad;
 }
-
