@@ -67,68 +67,97 @@ __DEVICE__ float3 multiplyMatrix(float3 in, const float mat[9]) {
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
+// Struct: XYDerivatives
+// Description: Holds chromaticity coordinates (x,y) and their derivatives with 
+//              respect to temperature for the Planckian locus calculations.
+// Members:
+//   x     - x chromaticity coordinate
+//   y     - y chromaticity coordinate
+//   dx_dT - Derivative of x with respect to temperature
+//   dy_dT - Derivative of y with respect to temperature
+//------------------------------------------------------------------------------
+
+typedef struct {
+    float x;
+    float y;
+    float dx_dT;
+    float dy_dT;
+} XYDerivatives;
+
+//------------------------------------------------------------------------------
+// Struct: XYCoordinates
+// Description: Simple container for 2D chromaticity coordinates used in 
+//              color temperature and tint adjustments.
+// Members:
+//   x - x chromaticity coordinate
+//   y - y chromaticity coordinate
+//------------------------------------------------------------------------------
+
+typedef struct {
+    float x;
+    float y;
+} XYCoordinates;
+
+
+//------------------------------------------------------------------------------
 // Function: temperatureToXYandDerivatives
 // Description: Converts a color temperature (Kelvin) to xy chromaticity coordinates
 //              and calculates the derivatives with respect to temperature.
 // Parameters:
 //   temperature - Input temperature in Kelvin.
-//   x_out       - Output pointer for x chromaticity coordinate.
-//   y_out       - Output pointer for y chromaticity coordinate.
-//   dx_dT_out   - Output pointer for derivative of x with respect to temperature.
-//   dy_dT_out   - Output pointer for derivative of y with respect to temperature.
 //------------------------------------------------------------------------------
 
-__DEVICE__ void temperatureToXYandDerivatives(float temperature, thread float* x_out, thread float* y_out, 
-    thread float* dx_dT_out, thread float* dy_dT_out) {
-    // Initialize variables
-    float x = 0.0f, y = 0.0f, dx_dT = 0.0f, dy_dT = 0.0f;
+__DEVICE__ XYDerivatives temperatureToXYandDerivatives(float temperature) {
+    // Initialize with safe default values
+    XYDerivatives result;
+    result.x = 0.0f;
+    result.y = 0.0f;
+    result.dx_dT = 0.0f;
+    result.dy_dT = 0.0f;
+
     float temp_kelvin = temperature;
 
     // Calculate x coordinate and its derivative based on temperature range
     if (temp_kelvin <= 4000.0f) {
-        x = (-0.2661239e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
+        result.x = (-0.2661239e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
             - (0.2343580e6f / (temp_kelvin * temp_kelvin))
             + (0.8776956e3f / temp_kelvin)
             + 0.179910f;
-        dx_dT = (0.7983717e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
+        result.dx_dT = (0.7983717e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
             + (0.4687160e6f / (temp_kelvin * temp_kelvin * temp_kelvin))
             - (0.8776956e3f / (temp_kelvin * temp_kelvin));
     } else {
-        x = (-3.0258469e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
+        result.x = (-3.0258469e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
             + (2.1070379e6f / (temp_kelvin * temp_kelvin))
             + (0.2226347e3f / temp_kelvin)
             + 0.240390f;
-        dx_dT = (9.0775407e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
+        result.dx_dT = (9.0775407e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
             - (4.2140758e6f / (temp_kelvin * temp_kelvin * temp_kelvin))
             - (0.2226347e3f / (temp_kelvin * temp_kelvin));
     }
 
     // Calculate y coordinate and its derivative based on temperature range
     if (temp_kelvin <= 2222.0f) {
-        y = -1.1063814f * (x * x * x)
-            - 1.34811020f * (x * x)
-            + 2.18555832f * x
+        result.y = -1.1063814f * (result.x * result.x * result.x)
+            - 1.34811020f * (result.x * result.x)
+            + 2.18555832f * result.x
             - 0.20219683f;
-        float dy_dx = -3.3191442f * (x * x)
-            - 2.69622040f * x
+        float dy_dx = -3.3191442f * (result.x * result.x)
+            - 2.69622040f * result.x
             + 2.18555832f;
-        dy_dT = dy_dx * dx_dT;
+        result.dy_dT = dy_dx * result.dx_dT;
     } else {
-        y = -0.9549476f * (x * x * x)
-            - 1.37418593f * (x * x)
-            + 2.09137015f * x
+        result.y = -0.9549476f * (result.x * result.x * result.x)
+            - 1.37418593f * (result.x * result.x)
+            + 2.09137015f * result.x
             - 0.16748867f;
-        float dy_dx = -2.8648428f * (x * x)
-            - 2.74837186f * x
+        float dy_dx = -2.8648428f * (result.x * result.x)
+            - 2.74837186f * result.x
             + 2.09137015f;
-        dy_dT = dy_dx * dx_dT;
+        result.dy_dT = dy_dx * result.dx_dT;
     }
 
-    // Output the calculated values
-    *x_out = x;
-    *y_out = y;
-    *dx_dT_out = dx_dT;
-    *dy_dT_out = dy_dT;
+    return result;
 }
 
 //------------------------------------------------------------------------------
@@ -143,7 +172,11 @@ __DEVICE__ void temperatureToXYandDerivatives(float temperature, thread float* x
 //   tint     - Tint adjustment value.
 //------------------------------------------------------------------------------
 
-__DEVICE__ void applyTintAdjustment(thread float* x_in_out, thread float* y_in_out, float dx_dT, float dy_dT, float tint) {
+__DEVICE__ XYCoordinates applyTintAdjustment(float x_in, float y_in, float dx_dT, float dy_dT, float tint) {
+    XYCoordinates result;
+    result.x = x_in;
+    result.y = y_in;
+
     // Calculate the normal vector to the black body locus
     float nx = -dy_dT;
     float ny = dx_dT;
@@ -156,9 +189,11 @@ __DEVICE__ void applyTintAdjustment(thread float* x_in_out, thread float* y_in_o
 
         // Apply tint adjustment (scaled by a constant factor)
         float tintAdjustment = tint * 0.0005f;
-        *x_in_out += nx * tintAdjustment;
-        *y_in_out += ny * tintAdjustment;
+        result.x += nx * tintAdjustment;
+        result.y += ny * tintAdjustment;
     }
+    
+    return result;
 }
 
 //------------------------------------------------------------------------------
@@ -336,11 +371,10 @@ __DEVICE__ OutputConversionFunctions selectOutputConversionFunctions(int sourceI
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, __TEXTURE__ p_TexG, __TEXTURE__ p_TexB) {
     // Retrieve current pixel values from the textures (in log space)
-    float3 inputRGB = make_float3(
-        _tex2D(p_TexR, p_X, p_Y),
-        _tex2D(p_TexG, p_X, p_Y),
-        _tex2D(p_TexB, p_X, p_Y)
-    );
+    float r = _tex2D(p_TexR, p_X, p_Y);
+    float g = _tex2D(p_TexG, p_X, p_Y);
+    float b = _tex2D(p_TexB, p_X, p_Y);
+    float3 inputRGB = make_float3(r, g, b);
 
     // Retrieve UI parameters
     float inputTemperature = p_InputTemperature;
@@ -415,15 +449,14 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
     // Calculate the source white point:
     // 1. Convert input temperature (Kelvin) to xy chromaticity coordinates.
     // 2. Apply tint adjustment.
-    float x_source, y_source, dx_dT_source, dy_dT_source;
-    temperatureToXYandDerivatives(inputTemperature, &x_source, &y_source, &dx_dT_source, &dy_dT_source);
-    applyTintAdjustment(&x_source, &y_source, dx_dT_source, dy_dT_source, tint);
-
-    // Convert the source white point from xy to XYZ space
+    XYDerivatives sourceWhite = temperatureToXYandDerivatives(inputTemperature);
+    XYCoordinates coords = applyTintAdjustment(sourceWhite.x, sourceWhite.y, 
+                                            sourceWhite.dx_dT, sourceWhite.dy_dT, tint);
+    // Convert the source white point to XYZ
     float3 tintedSourceWhiteXYZ = make_float3(
-        (1.0f / y_source) * x_source,
+        (1.0f / coords.y) * coords.x,
         1.0f,
-        (1.0f / y_source) * (1.0f - x_source - y_source)
+        (1.0f / coords.y) * (1.0f - coords.x - coords.y)
     );
 
     // Initialize the target white point to the source white point (default)
@@ -434,13 +467,9 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
     //   Mode 1 (Custom): Use the color picked from the color picker.
     //   Mode 2 (Average): Use the block-based average color.
     if (p_Mode == 0) {  // Temperature mode
-        float x_tgt, y_tgt, dx_tgt, dy_tgt;
-        temperatureToXYandDerivatives(temperature, &x_tgt, &y_tgt, &dx_tgt, &dy_tgt);
+        XYDerivatives targetWhite = temperatureToXYandDerivatives(temperature);
         targetWhiteXYZ = make_float3(
-            (1.0f / y_tgt) * x_tgt,
-            1.0f,
-            (1.0f / y_tgt) * (1.0f - x_tgt - y_tgt)
-        );
+            (1.0f / targetWhite.y) * targetWhite.x, 1.0f, (1.0f / targetWhite.y) * (1.0f - targetWhite.x - targetWhite.y));
     }
     else if (p_Mode == 1) {  // Custom white balance mode
         float3 pickedLog = make_float3(tgtColor.r, tgtColor.g, tgtColor.b);
