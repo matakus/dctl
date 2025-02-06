@@ -1,6 +1,6 @@
 #line 2 // Debugging line
 
-// Hue Specific Color Adjustment DCTL v1.05
+// Hue Specific Color Adjustment DCTL v1.06
 // Author: Matt.C
 // Description: Alters the hue, density and saturation of specific colors
 
@@ -574,9 +574,16 @@ __DEVICE__ float3 adjustSaturationWithMask(float3 rgb, float saturation, float m
 //------------------------------------------------------------------------------
 
 __DEVICE__ float3 adjustDensityWithMask(float3 rgb, float density, float mask, float densityRecovery) {
+    //Strength Factor
+    float denStrength = 2.0f; // 1x Strength
+
+    // Modify the density values effect while maintaining the slider range
+    float adjustedDensity = 1.0f + (density - 1.0f) * denStrength;
+
     // Set gamma to (1.0, 1.0, 1.0) as a neutral adjustment
     float3 gamma = make_float3(1.0f, 1.0f, 1.0f);
-    float3 adjustedRGB = adjust_density(rgb, gamma, density, densityRecovery);
+
+    float3 adjustedRGB = adjust_density(rgb, gamma, adjustedDensity, densityRecovery);
     // Blend the density adjustment based on the mask
     return mix3(rgb, adjustedRGB, mask);
 }
@@ -628,6 +635,7 @@ __DEVICE__ float3 adjustHueRotation(float3 rgb, float hueShift) {
 //              5. Combining hue shifts from all regions.
 //              6. Applying a final hue rotation if needed.
 //              7. Applying highlight and shadow recovery by blending with the original color.
+//              8. Applying density recovery by blending with the original color.
 // Parameters:
 //   p_Width, p_Height - Full image dimensions.
 //   p_X, p_Y        - Pixel coordinates.
@@ -644,7 +652,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     float3 hsvOriginal = RGB_to_HSV(originalRGB);
     float hueDegOriginal = hsvOriginal.x * 360.0f;
 
-    // Compute masks for each hue
+    // Compute masks for each hue with enhanced strength
     float maskRed = computeHueMask(hueDegOriginal, 0.0f, falloffRed, pCurveType);
     float maskSkin = computeHueMask(hueDegOriginal, 30.0f, falloffSkin, pCurveType);
     float maskYellow = computeHueMask(hueDegOriginal, 60.0f, falloffYellow, pCurveType);
@@ -670,7 +678,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
         maskMagenta *= overlapFactor;
     }
 
-    // Apply density adjustments
+    // Apply density adjustments with enhanced effect
     if (_fabs(densityRed - 1.0f) > EPSILON) 
         adjustedRGB = adjustDensityWithMask(adjustedRGB, densityRed, maskRed, densityRecovery);
     if (_fabs(densitySkin - 1.0f) > EPSILON)
@@ -716,15 +724,26 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
         adjustedRGB = adjustHueRotation(adjustedRGB, totalHueShift);
     }
 
-    // Apply highlight and shadow recovery
+    // Enhanced recovery calculations for better protection of saturated colors
     float luma = luminance(originalRGB);
     float highlightMaskStrength = luma * highlightRecovery;
     float shadowMaskStrength = (1.0f - luma) * shadowRecovery;
 
+    // Enhanced saturation protection
     float sat = calculate_saturation(originalRGB);
     float brightness = compute_value_max_channel(originalRGB);
-    float densityRecoveryMask = densityRecovery * _fminf(brightness * sat, 1.0f);
-
+    
+    // Enhanced protection for saturated colors
+    float saturationWeight = _powf(sat, 0.5f);  // More aggressive saturation protection
+    float brightnessWeight = _powf(brightness, 2.0f);  // Emphasize protection in brighter areas
+    
+    // Combine weights with bias towards saturation
+    float combinedWeight = _fmaxf(saturationWeight, brightnessWeight * 0.7f);
+    
+    // Calculate final recovery mask with enhanced protection
+    float densityRecoveryMask = densityRecovery * _fminf(combinedWeight, 1.0f);
+    
+    // Combine all recovery masks
     float recoveryMask = _fminf(highlightMaskStrength + shadowMaskStrength + densityRecoveryMask, 1.0f);
 
     float3 outRGB = mix3(adjustedRGB, originalRGB, recoveryMask);
