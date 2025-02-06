@@ -1,6 +1,6 @@
 #line 2
 
-// Saturation and Density adjustments DCTL v1.05
+// Saturation and Density adjustments DCTL v1.06
 // Author: Matt.C
 // Description: Adjusts Saturation and Density of an image with masks to restore detail in shadows and highlights
 
@@ -261,30 +261,42 @@ __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
     float3 rgb = make_float3(p_R, p_G, p_B);
-
+    
     // Step 1: Apply Density Adjustment
     float3 densityAdjustedRGB = adjust_density(rgb, make_float3(1.0, 1.0, 1.0), density, densityFeather);
-
+    
     // Step 2: Apply Vibrance Adjustment
     float3 vibranceAdjustedRGB = adjustVibrance(densityAdjustedRGB, vibrance);
-
+    
     // Step 3: Apply Saturation Adjustment
     float3 adjustedRGB = adjustSaturation(vibranceAdjustedRGB, saturation);
-    
-    // Compute masks for highlight, shadow, and density recovery.
+
+    // Enhanced recovery calculations with better protection
     float luma = luminance(rgb);
     float highlightMaskStrength = luma * highlightRecovery;
     float shadowMaskStrength = (1.0f - luma) * shadowRecovery;
-    
+
+    // Enhanced saturation protection from first code
     float sat = calculate_saturation(rgb);
-    float densityFeatherMask = densityFeather * _fminf(compute_value_max_component(rgb) * sat, 1.0f);
+    float brightness = compute_value_max_channel(rgb);
     
+    // Enhanced protection for saturated colors
+    float saturationWeight = _powf(sat, 0.5f);  // More aggressive saturation protection
+    float brightnessWeight = _powf(brightness, 2.0f);  // Emphasize protection in brighter areas
+    
+    // Combine weights with bias towards saturation
+    float combinedWeight = _fmaxf(saturationWeight, brightnessWeight * 0.7f);
+    
+    // Calculate density recovery mask with enhanced protection
+    float densityFeatherMask = densityFeather * _fminf(combinedWeight, 1.0f);
+    
+    // Combine all recovery masks
     float combinedMask = _fminf(highlightMaskStrength + shadowMaskStrength + densityFeatherMask, 1.0f);
-    
-    // Blend the adjusted color with the original based on the combined mask.
+
+    // Blend the adjusted color with the original based on the combined mask
     float3 outRGB = adjustedRGB * (1.0f - combinedMask) + rgb * combinedMask;
 
-    // Optionally, if the "View Mask" checkbox is enabled, output the mask as a grayscale image.
+    // Optionally, if the "View Mask" checkbox is enabled, output the mask as a grayscale image
     if (showMask) {
         return make_float3(combinedMask, combinedMask, combinedMask);
     }
