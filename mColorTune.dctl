@@ -110,14 +110,63 @@ DEFINE_UI_PARAMS(pCurveType, Falloff Curve, DCTLUI_COMBO_BOX, 1, {smoothStepFall
 DEFINE_UI_TOOLTIP(Falloff Curve, "How Hues are blended together")
 
 //------------------------------------------------------------------------------
-// Reference Values
+// Reference Values and Core Functions
 //------------------------------------------------------------------------------
 
 #define EPSILON 1e-6f  // Define epsilon for floating-point comparisons
 
 //------------------------------------------------------------------------------
-// Helper Functions
+// Utility Functions
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Function: powf
+// Description: Computes the power function for a float base and exponent,
+//              ensuring the sign of the base is preserved. Makes powf consistent
+//              over different O.S
+// Parameters:
+//   base - The base value.
+//   exp  - The exponent value.
+// Returns:
+//   The result of base raised to exp, preserving the sign of base.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float powf(float base, float exp) {
+    return _copysignf(_powf(_fabs(base), exp), base);
+}
+//------------------------------------------------------------------------------
+// Function: mixf
+// Description: Mixes two float values based on factor t.
+// Parameters:
+//   a - The first value.
+//   b - The second value.
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated value: a * (1 - t) + b * t.
+//------------------------------------------------------------------------------
+__DEVICE__ float mixf(float a, float b, float t) {
+    return a * (1.0f - t) + b * t;
+}
+
+//------------------------------------------------------------------------------
+// Function: mix3
+// Description: Mixes two float3 colors with gamma adjustment for smoother blending.
+// Parameters:
+//   a - The first color (float3).
+//   b - The second color (float3).
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 mix3(float3 a, float3 b, float t) {
+    t = powf(t, 1.5f); // Apply gamma to smooth the blending transition
+    return make_float3(
+        a.x * (1.0f - t) + b.x * t,
+        a.y * (1.0f - t) + b.y * t,
+        a.z * (1.0f - t) + b.z * t
+    );
+}
 
 //RGB to HSV conversion function
 __DEVICE__ float3 RGB_to_HSV(float3 in) {
@@ -160,22 +209,6 @@ __DEVICE__ float3 HSV_to_RGB(float3 in) {
 }
 
 //------------------------------------------------------------------------------
-// Function: powf
-// Description: Computes the power function for a float base and exponent,
-//              ensuring the sign of the base is preserved. Makes powf consistent
-//              over different O.S
-// Parameters:
-//   base - The base value.
-//   exp  - The exponent value.
-// Returns:
-//   The result of base raised to exp, preserving the sign of base.
-//------------------------------------------------------------------------------
-
-__DEVICE__ float powf(float base, float exp) {
-    return _copysignf(_powf(_fabs(base), exp), base);
-}
-
-//------------------------------------------------------------------------------
 // Function: bellCurve
 // Description: Computes a Gaussian bell curve value for a given input.
 // Parameters:
@@ -210,20 +243,6 @@ __DEVICE__ float bellCurveLooping(float in, float center, float width) {
     return _fmaxf(_fmaxf(curve, startCurve), endCurve);
 }
 
-//------------------------------------------------------------------------------
-// Function: _mixf
-// Description: Mixes two float values based on factor t.
-// Parameters:
-//   a - The first value.
-//   b - The second value.
-//   t - The interpolation factor.
-// Returns:
-//   The interpolated value: a * (1 - t) + b * t.
-//------------------------------------------------------------------------------
-
-__DEVICE__ float _mixf(float a, float b, float t) {
-    return a * (1.0f - t) + b * t;
-}
 
 //------------------------------------------------------------------------------
 // Function: wrapHue
@@ -253,21 +272,6 @@ __DEVICE__ float calculate_saturation(float3 rgb) {
     return maxVal == 0.0f ? 0.0f : (maxVal - minVal) / maxVal;
 }
 
-//------------------------------------------------------------------------------
-// Function: _mix3
-// Description: Mixes two float3 colors with gamma adjustment for smoother blending.
-// Parameters:
-//   a - The first color (float3).
-//   b - The second color (float3).
-//   t - The interpolation factor.
-// Returns:
-//   The interpolated color as a float3.
-//------------------------------------------------------------------------------
-
-__DEVICE__ float3 _mix3(float3 a, float3 b, float t) {
-    t = powf(t, 1.5); // Apply gamma to smooth the blending transition
-    return a * (1.0f - t) + b * t;
-}
 
 //------------------------------------------------------------------------------
 // Function: find_max_component
@@ -445,7 +449,7 @@ __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer
     float3 normalized_color = color / _fmaxf(max_channel_value, 0.00001f);
 
     float density = compute_density_mean(color);
-    density = _mixf(_fmaxf(max_channel_value, 0.0f), _fmaxf(density, 0.0f), density_mixer - 1.0f);
+    density = mixf(_fmaxf(max_channel_value, 0.0f), _fmaxf(density, 0.0f), density_mixer - 1.0f);
 
     // Calculate recovery mask for bright, saturated colors
     float sat = calculate_saturation(color);
@@ -462,7 +466,7 @@ __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer
     adjusted_color.z = _fminf(_fmaxf(adjusted_color.z, 0.0f), 1.0f);
 
     // Mix between adjusted and original based on protection strength
-    return _mix3(adjusted_color, color, protectionStrength);
+    return mix3(adjusted_color, color, protectionStrength);
 }
 
 //------------------------------------------------------------------------------
@@ -554,7 +558,7 @@ __DEVICE__ float3 adjustSaturationWithMask(float3 rgb, float saturation, float m
         newRGB.z = _fmaxf(newRGB.z, 0.0f);
     }
     // Return the adjusted RGB values with mask applied
-    return _mix3(rgb, newRGB, mask);
+    return mix3(rgb, newRGB, mask);
 }
 
 //------------------------------------------------------------------------------
@@ -574,7 +578,7 @@ __DEVICE__ float3 adjustDensityWithMask(float3 rgb, float density, float mask, f
     float3 gamma = make_float3(1.0f, 1.0f, 1.0f);
     float3 adjustedRGB = adjust_density(rgb, gamma, density, densityRecovery);
     // Blend the density adjustment based on the mask
-    return _mix3(rgb, adjustedRGB, mask);
+    return mix3(rgb, adjustedRGB, mask);
 }
 
 //------------------------------------------------------------------------------
@@ -723,7 +727,7 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
 
     float recoveryMask = _fminf(highlightMaskStrength + shadowMaskStrength + densityRecoveryMask, 1.0f);
 
-    float3 outRGB = adjustedRGB * (1.0f - recoveryMask) + originalRGB * recoveryMask;
+    float3 outRGB = mix3(adjustedRGB, originalRGB, recoveryMask);
 
     if (showMask) {
         float displayMask = totalMask;
