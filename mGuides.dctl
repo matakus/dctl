@@ -79,6 +79,31 @@ DEFINE_UI_TOOLTIP(Rotate 90°, "Rotate the Golden Spiral by 90°.")
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
+// Function: mix
+// Description: Mixes two float values based on factor t.
+// Parameters:
+//   a - The first value.
+//   b - The second value.
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated value: a * (1 - t) + b * t.
+//------------------------------------------------------------------------------
+
+//Float Mix
+__DEVICE__ float _mix(float a, float b, float t) {
+    return a * (1.0f - t) + b * t;
+}
+
+//Float3 Mix
+__DEVICE__ float3 mix(float3 a, float3 b, float t) {
+    return make_float3(
+        _mix(a.x, b.x, t),
+        _mix(a.y, b.y, t),
+        _mix(a.z, b.z, t)
+    );
+}
+
+//------------------------------------------------------------------------------
 // Function: getTargetDimensions
 // Description: Calculates target dimensions based on a desired aspect ratio.
 // Parameters:
