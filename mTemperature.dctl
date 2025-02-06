@@ -1,0 +1,520 @@
+#line 2
+
+// Color Temperature Adjustment DCTL v1.05
+// Author: Matt.C
+// Description: Adjusts color temperature based on the Black Body Radiator model,
+// supporting multiple color spaces and transfer functions.
+
+#include "zCCTF.dctl"
+
+//------------------------------------------------------------------------------
+// UI PARAMETERS
+//------------------------------------------------------------------------------
+
+// Temperature Controls
+DEFINE_UI_PARAMS(p_InputTemperature, Source Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0);
+DEFINE_UI_TOOLTIP(Source Kelvin, "Source Temperature in Kelvin");
+
+DEFINE_UI_PARAMS(p_Temperature, Target Kelvin, DCTLUI_SLIDER_FLOAT, 6500.0, 2000.0, 11000.0, 10.0);
+DEFINE_UI_TOOLTIP(Target Kelvin, "Target Temperature in Kelvin");
+
+DEFINE_UI_PARAMS(p_Tint, Tint - Green / Magenta, DCTLUI_SLIDER_FLOAT, 0.0, -150.0, 150.0, 1.0);
+DEFINE_UI_TOOLTIP(Tint - Green / Magenta, "Add or subtract green/magenta to the image");
+
+// Mode Selection
+DEFINE_UI_PARAMS(p_Mode, White Balance Mode, DCTLUI_COMBO_BOX, 0, {Temperature, Custom, Average}, {Temperature Based, Custom White Balance, Auto Average (Slow)});
+DEFINE_UI_TOOLTIP(White Balance Mode, "Method used to adjust the white balance");
+
+// Sampling Parameters
+DEFINE_UI_PARAMS(sample_block_size, Sample Block Size, DCTLUI_SLIDER_INT, 32, 32, 256, 32);
+DEFINE_UI_TOOLTIP(Sample Block Size, "Sizes of the blocks used for averaging");
+
+DEFINE_UI_PARAMS(p_ShowAvgBox, Show Input Average, DCTLUI_CHECK_BOX, 0);
+DEFINE_UI_TOOLTIP(Show Input Average, "Shows the average color of the input image based on the sample block size");
+
+// Color Space Selection
+DEFINE_UI_PARAMS(p_SourceInput, Source Input, DCTLUI_COMBO_BOX, 9, {Aces2065, AcesCCT_AP1, AcesCG_AP1, AppleLog_Rec2020, ArriLogC3_AWG3, ArriLogC4_AWG4, BlackmagicFilmGen5_BMWideGamut, CanonLog2_CanonCinemaGamut, CanonLog3_CanonCinemaGamut, DaVinciIntermediate_DWG, DJI_DLog_DGamut, FilmlightTLog_EGamut, FujiFLog_FGamut, FujiFLog2_FGamut, GoProProtune_GoProGamut, LeicaLLog_Rec2020, PanasonicVLog_VGamut, RedLog3G10_RWG, SonySLog2_SGamut, SonySLog3_SGamut, SonySLog3_SGamutCine, SonySLog3_SGamutVenice, SonySLog3_SGamutVeniceCine}, {Aces2065-1 (AP0), Aces CCT (AP1), Aces CG (AP1), Apple Log / Rec2020, Arri LogC3 / AWG3, Arri LogC4 / AWG4, Blackmagic Film Gen5 / BM Wide Gamut, Canon Log 2 / Canon Cinema Gamut, Canon Log 3 / Canon Cinema Gamut, DaVinci Intermediate / DWG, DJI D-Log / D-Gamut, Filmlight T-Log / E-Gamut, Fuji F-Log / F-Gamut, Fuji F-Log2 / F-Gamut, GoPro Protune / GoPro Gamut, Leica L-Log / Rec2020, Panasonic V-Log / V-Gamut, Red Log3G10 / RWG, Sony S-Log2 / S-Gamut 3, Sony S-Log3 / S-Gamut 3, Sony S-Log3 / S-Gamut 3.Cine, Sony S-Log3 / S-Gamut 3 Venice, Sony S-Log3 / S-Gamut 3.Cine Venice});
+DEFINE_UI_TOOLTIP(Source Input, "Source Input Color Space and Transfer Function");
+
+// Custom White Balance Color Picker
+DEFINE_UI_PARAMS(tgtColor, Custom White Balance, DCTLUI_COLOR_PICKER, 0.5f, 0.5f, 0.5f);
+DEFINE_UI_TOOLTIP(Custom White Balance, "Pick target white balance color");
+
+//------------------------------------------------------------------------------
+// MATRIX OPERATIONS
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Function: multiplyMatrix
+// Description: Performs a 3x3 matrix multiplication with a 3-component vector.
+// Parameters:
+//   in  - Input vector (float3).
+//   mat - 3x3 matrix in row-major order.
+// Returns:
+//   Transformed vector (float3).
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 multiplyMatrix(float3 in, const float mat[9]) {
+    return make_float3(
+        in.x * mat[0] + in.y * mat[1] + in.z * mat[2],
+        in.x * mat[3] + in.y * mat[4] + in.z * mat[5],
+        in.x * mat[6] + in.y * mat[7] + in.z * mat[8]
+    );
+}
+
+//------------------------------------------------------------------------------
+// TEMPERATURE CONVERSION FUNCTIONS
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Struct: XYDerivatives
+// Description: Holds chromaticity coordinates (x,y) and their derivatives with 
+//              respect to temperature for the Planckian locus calculations.
+// Members:
+//   x     - x chromaticity coordinate
+//   y     - y chromaticity coordinate
+//   dx_dT - Derivative of x with respect to temperature
+//   dy_dT - Derivative of y with respect to temperature
+//------------------------------------------------------------------------------
+
+typedef struct {
+    float x;
+    float y;
+    float dx_dT;
+    float dy_dT;
+} XYDerivatives;
+
+//------------------------------------------------------------------------------
+// Struct: XYCoordinates
+// Description: Simple container for 2D chromaticity coordinates used in 
+//              color temperature and tint adjustments.
+// Members:
+//   x - x chromaticity coordinate
+//   y - y chromaticity coordinate
+//------------------------------------------------------------------------------
+
+typedef struct {
+    float x;
+    float y;
+} XYCoordinates;
+
+
+//------------------------------------------------------------------------------
+// Function: temperatureToXYandDerivatives
+// Description: Converts a color temperature (Kelvin) to xy chromaticity coordinates
+//              and calculates the derivatives with respect to temperature.
+// Parameters:
+//   temperature - Input temperature in Kelvin.
+//------------------------------------------------------------------------------
+
+__DEVICE__ XYDerivatives temperatureToXYandDerivatives(float temperature) {
+    // Initialize with safe default values
+    XYDerivatives result;
+    result.x = 0.0f;
+    result.y = 0.0f;
+    result.dx_dT = 0.0f;
+    result.dy_dT = 0.0f;
+
+    float temp_kelvin = temperature;
+
+    // Calculate x coordinate and its derivative based on temperature range
+    if (temp_kelvin <= 4000.0f) {
+        result.x = (-0.2661239e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            - (0.2343580e6f / (temp_kelvin * temp_kelvin))
+            + (0.8776956e3f / temp_kelvin)
+            + 0.179910f;
+        result.dx_dT = (0.7983717e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
+            + (0.4687160e6f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            - (0.8776956e3f / (temp_kelvin * temp_kelvin));
+    } else {
+        result.x = (-3.0258469e9f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            + (2.1070379e6f / (temp_kelvin * temp_kelvin))
+            + (0.2226347e3f / temp_kelvin)
+            + 0.240390f;
+        result.dx_dT = (9.0775407e9f / (temp_kelvin * temp_kelvin * temp_kelvin * temp_kelvin))
+            - (4.2140758e6f / (temp_kelvin * temp_kelvin * temp_kelvin))
+            - (0.2226347e3f / (temp_kelvin * temp_kelvin));
+    }
+
+    // Calculate y coordinate and its derivative based on temperature range
+    if (temp_kelvin <= 2222.0f) {
+        result.y = -1.1063814f * (result.x * result.x * result.x)
+            - 1.34811020f * (result.x * result.x)
+            + 2.18555832f * result.x
+            - 0.20219683f;
+        float dy_dx = -3.3191442f * (result.x * result.x)
+            - 2.69622040f * result.x
+            + 2.18555832f;
+        result.dy_dT = dy_dx * result.dx_dT;
+    } else {
+        result.y = -0.9549476f * (result.x * result.x * result.x)
+            - 1.37418593f * (result.x * result.x)
+            + 2.09137015f * result.x
+            - 0.16748867f;
+        float dy_dx = -2.8648428f * (result.x * result.x)
+            - 2.74837186f * result.x
+            + 2.09137015f;
+        result.dy_dT = dy_dx * result.dx_dT;
+    }
+
+    return result;
+}
+
+//------------------------------------------------------------------------------
+// Function: applyTintAdjustment
+// Description: Adjusts chromaticity coordinates by applying a tint, based on the derivative
+//              of the black body locus. This nudges the coordinates along a normalized vector.
+// Parameters:
+//   x_in_out - Pointer to the x chromaticity coordinate (input and output).
+//   y_in_out - Pointer to the y chromaticity coordinate (input and output).
+//   dx_dT    - Derivative of x with respect to temperature.
+//   dy_dT    - Derivative of y with respect to temperature.
+//   tint     - Tint adjustment value.
+//------------------------------------------------------------------------------
+
+__DEVICE__ XYCoordinates applyTintAdjustment(float x_in, float y_in, float dx_dT, float dy_dT, float tint) {
+    XYCoordinates result;
+    result.x = x_in;
+    result.y = y_in;
+
+    // Calculate the normal vector to the black body locus
+    float nx = -dy_dT;
+    float ny = dx_dT;
+
+    // Normalize the vector
+    float length = sqrt(nx * nx + ny * ny);
+    if (length > 0.0f) {
+        nx /= length;
+        ny /= length;
+
+        // Apply tint adjustment (scaled by a constant factor)
+        float tintAdjustment = tint * 0.0005f;
+        result.x += nx * tintAdjustment;
+        result.y += ny * tintAdjustment;
+    }
+    
+    return result;
+}
+
+//------------------------------------------------------------------------------
+// COLOR ADAPTATION FUNCTIONS
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Function: applyCAT02Adaptation
+// Description: Applies CAT02 chromatic adaptation to an XYZ color to adjust for different white points.
+// Parameters:
+//   XYZ            - Input color in XYZ.
+//   sourceWhiteXYZ - Source white point in XYZ.
+//   targetWhiteXYZ - Target white point in XYZ.
+// Returns:
+//   Adapted XYZ color (float3).
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 applyCAT02Adaptation(float3 XYZ, float3 sourceWhiteXYZ, float3 targetWhiteXYZ) {
+    // CAT02 adaptation matrix and its inverse
+    const float CAT02[9] = {
+        0.7328f, 0.4296f, -0.1624f,
+        -0.7036f, 1.6975f, 0.0061f,
+        0.0030f, 0.0136f, 0.9834f
+    };
+
+    const float invCAT02[9] = {
+        1.0961238f, -0.278869f, 0.182745f,
+        0.454369f, 0.473533f, 0.072098f,
+        -0.0096276f, -0.005698f, 1.015326f
+    };
+
+    // Convert the input XYZ to LMS space
+    float3 LMS = multiplyMatrix(XYZ, CAT02);
+    float3 LMS_sourceWhite = multiplyMatrix(sourceWhiteXYZ, CAT02);
+    float3 LMS_targetWhite = multiplyMatrix(targetWhiteXYZ, CAT02);
+
+    // Apply von Kries adaptation with safety checks
+    float3 LMS_adapted;
+    LMS_adapted.x = (LMS_sourceWhite.x != 0.0f) ? LMS.x * (LMS_targetWhite.x / LMS_sourceWhite.x) : LMS.x;
+    LMS_adapted.y = (LMS_sourceWhite.y != 0.0f) ? LMS.y * (LMS_targetWhite.y / LMS_sourceWhite.y) : LMS.y;
+    LMS_adapted.z = (LMS_sourceWhite.z != 0.0f) ? LMS.z * (LMS_targetWhite.z / LMS_sourceWhite.z) : LMS.z;
+
+    // Convert adapted LMS back to XYZ space
+    return multiplyMatrix(LMS_adapted, invCAT02);
+}
+
+//------------------------------------------------------------------------------
+// CONVERSION FUNCTIONS
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Struct: ConversionFunctions
+// Description: Holds pointers to the input conversion functions (log-to-linear and colorspace-to-XYZ).
+//------------------------------------------------------------------------------
+
+struct ConversionFunctions {
+    float3 (*logToLinFunc)(float3 in);
+    float3 (*colorspaceToXYZFunc)(float3 in);
+};
+
+//------------------------------------------------------------------------------
+// Function: selectConversionFunctions
+// Description: Selects appropriate input conversion functions based on the source input dropdown.
+// Parameters:
+//   sourceInput - Integer representing the selected source input.
+// Returns:
+//   A ConversionFunctions struct with function pointers for log-to-linear and colorspace-to-XYZ conversion.
+//------------------------------------------------------------------------------
+
+__DEVICE__ ConversionFunctions selectConversionFunctions(int sourceInput) {
+    ConversionFunctions funcs;
+    switch (sourceInput) {
+        case 0: funcs.logToLinFunc = linear; funcs.colorspaceToXYZFunc = ACES2065toXYZ; break;
+        case 1: funcs.logToLinFunc = logToLinACEScct; funcs.colorspaceToXYZFunc = ACES_CCTtoXYZ; break;
+        case 2: funcs.logToLinFunc = logToLinACEScc; funcs.colorspaceToXYZFunc = ACES_CGtoXYZ; break;
+        case 3: funcs.logToLinFunc = logToLinAppleLogProfile; funcs.colorspaceToXYZFunc = AppleLogtoXYZ; break;
+        case 4: funcs.logToLinFunc = logToLinArriLogC3; funcs.colorspaceToXYZFunc = ArriWideGamut3toXYZ; break;
+        case 5: funcs.logToLinFunc = logToLinArriLogC4; funcs.colorspaceToXYZFunc = ArriWideGamut4toXYZ; break;
+        case 6: funcs.logToLinFunc = logToLinBlackmagicFilmGen5; funcs.colorspaceToXYZFunc = BlackMagicWideGamutGen5toXYZ; break;
+        case 7: funcs.logToLinFunc = logToLinCanonLog2; funcs.colorspaceToXYZFunc = CanonCinemaGamuttoXYZ; break;
+        case 8: funcs.logToLinFunc = logToLinCanonLog3; funcs.colorspaceToXYZFunc = CanonCinemaGamuttoXYZ; break;
+        case 9: funcs.logToLinFunc = logToLinDavinciIntermediate; funcs.colorspaceToXYZFunc = DaVinciWideGamuttoXYZ; break;
+        case 10: funcs.logToLinFunc = logToLinDJIDLog; funcs.colorspaceToXYZFunc = DJIDGamuttoXYZ; break;
+        case 11: funcs.logToLinFunc = logToLinFilmLightTLog; funcs.colorspaceToXYZFunc = FilmLightEGamuttoXYZ; break;
+        case 12: funcs.logToLinFunc = logToLinFLog; funcs.colorspaceToXYZFunc = FujiFGamuttoXYZ; break;
+        case 13: funcs.logToLinFunc = logToLinFLog2; funcs.colorspaceToXYZFunc = FujiFGamuttoXYZ; break;
+        case 14: funcs.logToLinFunc = logToLinProtune; funcs.colorspaceToXYZFunc = GoProProtuneToXYZ; break;
+        case 15: funcs.logToLinFunc = logToLinLeicaLog; funcs.colorspaceToXYZFunc = Rec2020toXYZ; break;
+        case 16: funcs.logToLinFunc = logToLinVLog; funcs.colorspaceToXYZFunc = PanasonicVGamuttoXYZ; break;
+        case 17: funcs.logToLinFunc = logToLinRedLog3g10; funcs.colorspaceToXYZFunc = RedWideGamuttoXYZ; break;
+        case 18: funcs.logToLinFunc = logToLinSonySLog2; funcs.colorspaceToXYZFunc = SGamut3toXYZ; break;
+        case 19: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3toXYZ; break;
+        case 20: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3CinetoXYZ; break;
+        case 21: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3VenicetoXYZ; break;
+        case 22: funcs.logToLinFunc = logToLinSonySLog3; funcs.colorspaceToXYZFunc = SGamut3VeniceCinetoXYZ; break;
+    }
+    return funcs;
+}
+
+//------------------------------------------------------------------------------
+// Struct: OutputConversionFunctions
+// Description: Holds pointers to the output conversion functions (XYZ-to-colorspace and linear-to-log).
+//------------------------------------------------------------------------------
+
+struct OutputConversionFunctions {
+    float3 (*XYZtoColorspaceFunc)(float3 in);
+    float3 (*linToLogFunc)(float3 in);
+};
+
+//------------------------------------------------------------------------------
+// Function: selectOutputConversionFunctions
+// Description: Selects appropriate output conversion functions based on the source input.
+// Parameters:
+//   sourceInput - Integer representing the selected source input.
+// Returns:
+//   An OutputConversionFunctions struct with function pointers for XYZ-to-colorspace and linear-to-log conversion.
+//------------------------------------------------------------------------------
+
+__DEVICE__ OutputConversionFunctions selectOutputConversionFunctions(int sourceInput) {
+    OutputConversionFunctions funcs;
+    switch (sourceInput) {
+        case 0: funcs.XYZtoColorspaceFunc = XYZtoACES2065; funcs.linToLogFunc = linear; break;
+        case 1: funcs.XYZtoColorspaceFunc = XYZtoACES_CCT; funcs.linToLogFunc = linToLogACEScct; break;
+        case 2: funcs.XYZtoColorspaceFunc = XYZtoACES_CG; funcs.linToLogFunc = linToLogACEScc; break;
+        case 3: funcs.XYZtoColorspaceFunc = XYZtoAppleLog; funcs.linToLogFunc = linToLogAppleLogProfile; break;
+        case 4: funcs.XYZtoColorspaceFunc = XYZtoArriWideGamut3; funcs.linToLogFunc = linToLogArriLogC3; break;
+        case 5: funcs.XYZtoColorspaceFunc = XYZtoArriWideGamut4; funcs.linToLogFunc = linToLogArriLogC4; break;
+        case 6: funcs.XYZtoColorspaceFunc = XYZtoBlackMagicWideGamutGen5; funcs.linToLogFunc = linToLogBlackmagicFilmGen5; break;
+        case 7: funcs.XYZtoColorspaceFunc = XYZtoCanonCinemaGamut; funcs.linToLogFunc = linToLogCanonLog2; break;
+        case 8: funcs.XYZtoColorspaceFunc = XYZtoCanonCinemaGamut; funcs.linToLogFunc = linToLogCanonLog3; break;
+        case 9: funcs.XYZtoColorspaceFunc = XYZtoDaVinciWideGamut; funcs.linToLogFunc = linToLogDavinciIntermediate; break;
+        case 10: funcs.XYZtoColorspaceFunc = XYZtoDJIDGamut; funcs.linToLogFunc = linToLogDJIDLog; break;
+        case 11: funcs.XYZtoColorspaceFunc = XYZtoFilmLightEGamut; funcs.linToLogFunc = linToLogFilmLightTLog; break;
+        case 12: funcs.XYZtoColorspaceFunc = XYZtoFujiFGamut; funcs.linToLogFunc = linToLogFLog; break;
+        case 13: funcs.XYZtoColorspaceFunc = XYZtoFujiFGamut; funcs.linToLogFunc = linToLogFLog2; break;
+        case 14: funcs.XYZtoColorspaceFunc = XYZtoGoProProtune; funcs.linToLogFunc = linToLogProtune; break;
+        case 15: funcs.XYZtoColorspaceFunc = XYZtoRec2020; funcs.linToLogFunc = linToLogLeicaLog; break;
+        case 16: funcs.XYZtoColorspaceFunc = XYZtoPanasonicVGamut; funcs.linToLogFunc = linToLogVLog; break;
+        case 17: funcs.XYZtoColorspaceFunc = XYZtoRedWideGamut; funcs.linToLogFunc = linToLogRedLog3g10; break;
+        case 18: funcs.XYZtoColorspaceFunc = XYZtoSGamut3; funcs.linToLogFunc = linToLogSonySLog2; break;
+        case 19: funcs.XYZtoColorspaceFunc = XYZtoSGamut3; funcs.linToLogFunc = linToLogSonySLog3; break;
+        case 20: funcs.XYZtoColorspaceFunc = XYZtoSGamut3Cine; funcs.linToLogFunc = linToLogSonySLog3; break;
+        case 21: funcs.XYZtoColorspaceFunc = XYZtoSGamut3Venice; funcs.linToLogFunc = linToLogSonySLog3; break;
+        case 22: funcs.XYZtoColorspaceFunc = XYZtoSGamut3VeniceCine; funcs.linToLogFunc = linToLogSonySLog3; break;
+    }
+    return funcs;
+}
+
+//------------------------------------------------------------------------------
+// MAIN FUNCTION
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// Function: transform
+// Description: Main image transformation function that adjusts color temperature based
+//              on the Black Body Radiator model. The process includes:
+//              1. Reading the current pixel color from textures (in log space).
+//              2. Retrieving UI parameters for source/target temperature, tint, sampling, etc.
+//              3. Selecting the proper conversion functions based on the source input color space.
+//              4. Calculating a block-based average if auto white balance is selected.
+//              5. Displaying an average color patch if enabled.
+//              6. Computing the source white point from the input temperature and applying tint.
+//              7. Determining the target white point based on the selected white balance mode:
+//                 Temperature, Custom, or Average.
+//              8. Converting the current pixel from log to linear, then to XYZ.
+//              9. Adapting the pixel color using CAT02 chromatic adaptation.
+//             10. Converting the adapted color back to the target colorspace and back to log space.
+// Parameters:
+//   p_Width, p_Height   - Full image dimensions.
+//   p_X, p_Y          - Pixel coordinates in full image space.
+//   p_TexR, p_TexG, p_TexB - Textures for the R, G, and B channels.
+// Returns:
+//   The final output color (float3) after color temperature adjustment.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, __TEXTURE__ p_TexG, __TEXTURE__ p_TexB) {
+    // Retrieve current pixel values from the textures (in log space)
+    float r = _tex2D(p_TexR, p_X, p_Y);
+    float g = _tex2D(p_TexG, p_X, p_Y);
+    float b = _tex2D(p_TexB, p_X, p_Y);
+    float3 inputRGB = make_float3(r, g, b);
+
+    // Retrieve UI parameters
+    float inputTemperature = p_InputTemperature;
+    float temperature = p_Temperature;
+    float tint = p_Tint;
+    int blockSize = sample_block_size;  // Sample block size for averaging
+    bool showBox = (p_ShowAvgBox != 0);
+
+    // Select appropriate conversion functions based on the source input color space
+    ConversionFunctions inputConversion = selectConversionFunctions(p_SourceInput);
+    OutputConversionFunctions outputConversion = selectOutputConversionFunctions(p_SourceInput);
+
+    // Initialize the average linear RGB (default mid-grey value)
+    float3 avgLin = make_float3(0.18f, 0.18f, 0.18f);
+
+    // Calculate block-based average for auto white balance (mode 2) or if the average box is enabled
+    if (p_Mode == 2 || showBox) {
+        float sumLinR = 0.0f, sumLinG = 0.0f, sumLinB = 0.0f;
+        float validSamples = 0.0f;
+
+        // Determine number of blocks in x and y directions
+        int blocks_x = p_Width / blockSize;
+        int blocks_y = p_Height / blockSize;
+
+        // Sample the center of each block
+        for (int by = 0; by < blocks_y; by++) {
+            int center_y = by * blockSize + blockSize / 2;
+            if (center_y >= p_Height) continue;
+
+            for (int bx = 0; bx < blocks_x; bx++) {
+                int center_x = bx * blockSize + blockSize / 2;
+                if (center_x >= p_Width) continue;
+
+                // Retrieve the center pixel of the block (in log space)
+                float3 blockRGB = make_float3(
+                    _tex2D(p_TexR, center_x, center_y),
+                    _tex2D(p_TexG, center_x, center_y),
+                    _tex2D(p_TexB, center_x, center_y)
+                );
+
+                // Exclude near-black/white values to avoid outliers
+                if (blockRGB.x > 0.01f && blockRGB.x < 0.99f &&
+                    blockRGB.y > 0.01f && blockRGB.y < 0.99f &&
+                    blockRGB.z > 0.01f && blockRGB.z < 0.99f) {
+                    float3 lin = inputConversion.logToLinFunc(blockRGB);
+                    sumLinR += lin.x;
+                    sumLinG += lin.y;
+                    sumLinB += lin.z;
+                    validSamples += 1.0f;
+                }
+            }
+        }
+
+        // If valid samples exist, compute the average linear RGB
+        if (validSamples > 0.0f) {
+            avgLin = make_float3(
+                sumLinR / validSamples,
+                sumLinG / validSamples,
+                sumLinB / validSamples
+            );
+        }
+    }
+
+    // Convert the average linear RGB to log space for display purposes
+    float3 avgColorLog = outputConversion.linToLogFunc(avgLin);
+
+    // If the average box is enabled and the pixel is in the top-left region, display the average color patch
+    if (showBox && p_X < 200 && p_Y < 200) {
+        return avgColorLog;
+    }
+
+    // Calculate the source white point:
+    // 1. Convert input temperature (Kelvin) to xy chromaticity coordinates.
+    // 2. Apply tint adjustment.
+    XYDerivatives sourceWhite = temperatureToXYandDerivatives(inputTemperature);
+    XYCoordinates coords = applyTintAdjustment(sourceWhite.x, sourceWhite.y, sourceWhite.dx_dT, sourceWhite.dy_dT, tint);
+    // Convert the source white point to XYZ
+    float3 tintedSourceWhiteXYZ = make_float3((1.0f / coords.y) * coords.x, 1.0f, (1.0f / coords.y) * (1.0f - coords.x - coords.y));
+
+    // Initialize the target white point to the source white point (default)
+    float3 targetWhiteXYZ = tintedSourceWhiteXYZ;
+
+    // Determine the target white point based on the selected white balance mode:
+    //   Mode 0 (Temperature): Use the target Kelvin value.
+    //   Mode 1 (Custom): Use the color picked from the color picker.
+    //   Mode 2 (Average): Use the block-based average color.
+    if (p_Mode == 0) {  // Temperature mode
+        XYDerivatives targetWhite = temperatureToXYandDerivatives(temperature);
+        targetWhiteXYZ = make_float3(
+            (1.0f / targetWhite.y) * targetWhite.x, 1.0f, (1.0f / targetWhite.y) * (1.0f - targetWhite.x - targetWhite.y));
+    }
+    else if (p_Mode == 1) {  // Custom white balance mode
+        float3 pickedLog = make_float3(tgtColor.r, tgtColor.g, tgtColor.b);
+        float3 pickedLin = inputConversion.logToLinFunc(pickedLog);
+        float3 pickedXYZ = inputConversion.colorspaceToXYZFunc(pickedLin);
+
+        float sum = pickedXYZ.x + pickedXYZ.y + pickedXYZ.z;
+        if (sum > 0.0f) {
+            float x = pickedXYZ.x / sum;
+            float y = pickedXYZ.y / sum;
+            targetWhiteXYZ = make_float3(
+                (1.0f / y) * x,
+                1.0f,
+                (1.0f / y) * (1.0f - x - y)
+            );
+        }
+        else {
+            // Fallback to D65 if the sum is zero
+            targetWhiteXYZ = make_float3(0.3127f, 1.0f, 0.3290f);
+        }
+    }
+    else if (p_Mode == 2) {  // Average white balance mode
+        float3 avgXYZ = inputConversion.colorspaceToXYZFunc(avgLin);
+        float sumAvg = avgXYZ.x + avgXYZ.y + avgXYZ.z;
+        if (sumAvg > 0.0f) {
+            float x = avgXYZ.x / sumAvg;
+            float y = avgXYZ.y / sumAvg;
+            targetWhiteXYZ = make_float3(
+                (1.0f / y) * x,
+                1.0f,
+                (1.0f / y) * (1.0f - x - y)
+            );
+        }
+        else {
+            // Fallback to D65 if the sum is zero
+            targetWhiteXYZ = make_float3(0.3127f, 1.0f, 0.3290f);
+        }
+    }
+
+    // Process the current pixel:
+    // 1. Convert the pixel from log space to linear.
+    // 2. Convert linear color to XYZ.
+    // 3. Adapt the XYZ color using CAT02 adaptation.
+    // 4. Convert the adapted XYZ color to the target color space.
+    // 5. Convert the final linear color back to log space.
+    float3 linRGB = inputConversion.logToLinFunc(inputRGB);
+    float3 XYZ = inputConversion.colorspaceToXYZFunc(linRGB);
+    float3 adaptedXYZ = applyCAT02Adaptation(XYZ, tintedSourceWhiteXYZ, targetWhiteXYZ);
+    float3 linOut = outputConversion.XYZtoColorspaceFunc(adaptedXYZ);
+    float3 finalRGB = outputConversion.linToLogFunc(linOut);
+
+    return finalRGB;
+}
