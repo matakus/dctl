@@ -203,6 +203,63 @@ __DEVICE__ float maskFunc(float r, float g, float b, int chanType, float stren, 
 }
 
 //------------------------------------------------------------------------------
+// Function: getGreyValue
+// Description: Maps middle grey to 0.18 or the camera specified middle grey
+// Parameters:
+//   transferFunc - Input transfer function
+// Returns: Middle grey value
+//------------------------------------------------------------------------------
+
+__DEVICE__ float getGreyValue(int transferFunc) {
+    // Middle grey value based on transfer function.
+    //You can usually find on the whitepaper for the transfer curve provided by Arri, Sony etc. 
+
+   float baseMiddleGray = 0.18f;
+   
+   switch(transferFunc) {
+       case aces_cc:
+       case aces_cct:
+       case cineon:
+       case davinciIntermediate:
+       case djiDlog:
+       case filmlightTlog:
+       case leicaLog:
+       case nikonNlog:
+       case lin:
+           return 0.18f;
+       case appleLog:
+           return 0.478f;
+       case arriLogC3:
+       case canonlog3:
+           return 0.391f;
+       case arriLogC4:
+           return 0.278f;
+       case blackmagicFilmGen5:
+       case flog2:
+           return 0.384f;
+       case canonlog:
+           return 0.35f;
+       case canonlog2:
+           return 0.32f;
+       case flog:
+           return 0.463f;
+       case goProProtune:
+           return 0.68f;
+       case redlog3g10:
+           return 0.461f;
+       case sonySlog:
+           return 0.376f;
+       case sonySlog2:
+           return 0.323f;
+       case sonySlog3:
+           return 0.411f;
+       case panasonicVlog:
+           return 0.423f;
+   }
+   return baseMiddleGray;
+}
+
+//------------------------------------------------------------------------------
 // Function: calculateNaturalMask
 // Description: Generates a mask using natural log-space thresholds
 // Parameters:
@@ -212,9 +269,11 @@ __DEVICE__ float maskFunc(float r, float g, float b, int chanType, float stren, 
 // Returns: Mask value between 0 and 1
 //------------------------------------------------------------------------------
 
-__DEVICE__ float calculateNaturalMask(float input_metric, float threshold_stops, float computedFeathering) {
-    float threshold_min = 0.18f * _exp2f(threshold_stops - 0.45f * computedFeathering);
-    float threshold_max = 0.18f * _exp2f(threshold_stops + 0.25f * computedFeathering);
+__DEVICE__ float calculateNaturalMask(float input_metric, float threshold_stops, float computedFeathering, int transferFunc) {
+
+    float baseMiddleGray = getGreyValue(transferFunc);
+    float threshold_min = baseMiddleGray * _exp2f(threshold_stops - 0.45f * computedFeathering);
+    float threshold_max = baseMiddleGray * _exp2f(threshold_stops + 0.25f * computedFeathering);
 
     float input_metric_log = _log2f(_fmaxf(input_metric, 0.0f));
     float threshold_min_log = _log2f(threshold_min);
@@ -480,8 +539,8 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
         float highlight_feathering = -1.5f * mapped_highlight_threshold + 30.0f;
         
         // Generate masks using natural log-space calculations
-        float shadowMask = calculateNaturalMask(input_metric, mapped_shadow_threshold, shadow_feathering);
-        float highlightMask = 1.0f - calculateNaturalMask(input_metric, mapped_highlight_threshold, highlight_feathering);
+        float shadowMask = calculateNaturalMask(input_metric, mapped_shadow_threshold, shadow_feathering, p_TransferFunction);
+        float highlightMask = 1.0f - calculateNaturalMask(input_metric, mapped_highlight_threshold, highlight_feathering, p_TransferFunction);
         
         // Apply exposure adjustments in linear space
         float3 shadow_exposed = exposureFunc(input, shadow_exposure);
