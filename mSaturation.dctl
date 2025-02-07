@@ -23,8 +23,11 @@ DEFINE_UI_TOOLTIP(Highlight Recovery, "Preserves original values in the highligh
 DEFINE_UI_PARAMS(shadowRecovery, Shadow Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_TOOLTIP(Shadow Recovery, "Preserves original values in the shadows")
 
-DEFINE_UI_PARAMS(densityFeather, Density Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
-DEFINE_UI_TOOLTIP(Density Recovery, "Preserves original values in bright, saturated areas")
+DEFINE_UI_PARAMS(densityRecovery, Density Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
+DEFINE_UI_TOOLTIP(Density Recovery, "Prevents areas getting too dark")
+
+DEFINE_UI_PARAMS(shineRecovery, Shine, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
+DEFINE_UI_TOOLTIP(Shine, "Preserves original values in bright, unsaturated areas")
 
 DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)
 
@@ -52,6 +55,39 @@ __DEVICE__ float powf(float base, float exp) {
     return _copysignf(_powf(_fabs(base), exp), base);
 }
 
+//------------------------------------------------------------------------------
+// Function: mixf
+// Description: Mixes two float values based on factor t.
+// Parameters:
+//   a - The first value.
+//   b - The second value.
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated value: a * (1 - t) + b * t.
+//------------------------------------------------------------------------------
+__DEVICE__ float mixf(float a, float b, float t) {
+    return a * (1.0f - t) + b * t;
+}
+
+//------------------------------------------------------------------------------
+// Function: mix3
+// Description: Mixes two float3 colors with gamma adjustment for smoother blending.
+// Parameters:
+//   a - The first color (float3).
+//   b - The second color (float3).
+//   t - The interpolation factor.
+// Returns:
+//   The interpolated color as a float3.
+//------------------------------------------------------------------------------
+
+__DEVICE__ float3 mix3(float3 a, float3 b, float t) {
+    t = powf(t, 1.5f); // Apply gamma to smooth the blending transition
+    return make_float3(
+        a.x * (1.0f - t) + b.x * t,
+        a.y * (1.0f - t) + b.y * t,
+        a.z * (1.0f - t) + b.z * t
+    );
+}
 //------------------------------------------------------------------------------
 // Function: luminance
 // Description: Computes the luminance (perceived brightness) of an RGB color.
@@ -129,6 +165,70 @@ __DEVICE__ float compute_value_max_component(float3 color) {
 
 __DEVICE__ float compute_density_mean(float3 rgb) {
     return (rgb.x + rgb.y + rgb.z) / 3.0;
+}
+
+//------------------------------------------------------------------------------
+// Function: calculate_saturation_tetrahedral
+// Description: Calculates color saturation using a tetrahedral approach, which
+//              provides smoother transitions and better handling of near-neutral
+//              colors compared to traditional min/max methods.
+//
+// Parameters:
+//   rgb - Input color as float3 (RGB values should be in range [0,1])
+//
+// Returns:
+//   float - Saturation value in range [0,1]
+//          0.0 = Completely desaturated (grayscale)
+//          1.0 = Fully saturated
+//
+// Implementation Details:
+//   1. Finds max, min, and middle RGB components to determine color position
+//      within the RGB cube
+//   2. Uses tetrahedral interpolation by considering the middle component's
+//      position relative to min/max
+//   3. Weights the middle component (0.5) to smooth transitions between
+//      different color regions
+//   4. Includes safeguards against division by zero for very dark colors
+//
+// Mathematical Background:
+//   - Traditional saturation = (max-min)/max
+//   - Tetrahedral adds mid component consideration for better color space
+//     handling, especially in areas where two channels are similar
+//------------------------------------------------------------------------------
+
+__DEVICE__ float calculate_saturation_tetrahedral(float3 rgb) {
+    float r = rgb.x;
+    float g = rgb.y;
+    float b = rgb.z;
+    
+    // Find the min and max components
+    float max_rgb = _fmaxf(_fmaxf(r, g), b);
+    float min_rgb = _fminf(_fminf(r, g), b);
+    
+    // Find the mid component using conditional logic
+    float mid_rgb;
+    if (r > g) {
+        if (g > b) mid_rgb = g;       // Case: r > g > b
+        else if (r > b) mid_rgb = b;  // Case: r > b > g
+        else mid_rgb = r;             // Case: b > r > g
+    } else {
+        if (r > b) mid_rgb = r;       // Case: g > r > b
+        else if (g > b) mid_rgb = b;  // Case: g > b > r
+        else mid_rgb = g;             // Case: b > g > r
+    }
+    
+    // Protect against division by zero for very dark colors
+    if (max_rgb < EPSILON) return 0.0f;
+    
+    // Calculate color differences for tetrahedral interpolation
+    float chroma = max_rgb - min_rgb;
+    float mid_diff = mid_rgb - min_rgb;
+    
+    // Calculate saturation with middle component weighting
+    float saturation = (chroma + mid_diff * 0.5f) / (_fmaxf(max_rgb, 0.0001f));
+    
+    // Ensure output is in valid range [0,1]
+    return _fminf(saturation, 1.0f);
 }
 
 //------------------------------------------------------------------------------
@@ -240,65 +340,107 @@ __DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
 }
 
 //------------------------------------------------------------------------------
-// MAIN TRANSFORMATION FUNCTION
+// MAIN FUNCTION
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 // Function: transform
-// Description: Main image transformation function that adjusts saturation and density.
-//              The process includes:
-//              1. Applying density adjustment to modify overall brightness while protecting saturated highlights.
-//              2. Applying vibrance adjustment for subtle saturation control.
-//              3. Adjusting the saturation of the image.
-//              4. Computing masks for highlight, shadow, and density recovery.
-//              5. Blending the adjusted color with the original based on the computed mask.
+// Description: Main image transformation function that applies targeted color
+// adjustments with sophisticated recovery mechanisms. The process includes:
+// 1. Analyzing pixel brightness and calculating a base highlight mask.
+// 2. Computing saturation level and creating an inverse saturation mask.
+// 3. Implementing screen-blend highlight recovery for natural rolloff.
+// 4. Building density protection masks for saturated shadow areas.
+// 5. Applying sequential adjustments: density, vibrance, and saturation.
+// 6. Computing highlight and shadow recovery based on luminance.
+// 7. Performing two-stage blending with recovery masks.
+// 8. Providing optional mask visualization for debugging.
+//
 // Parameters:
-//   p_Width, p_Height - Full image dimensions.
-//   p_X, p_Y        - Pixel coordinates.
-//   p_R, p_G, p_B   - Input red, green, and blue channel values.
+// p_Width, p_Height - Full image dimensions.
+// p_X, p_Y - Pixel coordinates in full image space.
+// p_R, p_G, p_B - Input color values (expected in 0.0 to 1.0 range).
+//
+// Global Parameters:
+// saturation - Global saturation adjustment strength.
+// vibrance - Smart saturation adjustment strength.
+// density - Base density adjustment strength.
+// highlightRecovery - Controls preservation of highlight detail.
+// shadowRecovery - Controls preservation of shadow detail.
+// densityRecovery - Controls protection of saturated dark areas.
+// shineRecovery - Controls the strength of highlight recovery preservation.
+// showMask - Enables visualization of internal masks.
+//
 // Returns:
-//   The final adjusted color (float3) after applying density, vibrance, and saturation adjustments.
+// The final output color (float3) after all adjustments and recoveries.
 //------------------------------------------------------------------------------
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+
+    //-------------------------------------------------------
+    // 1. Initial Brightness and Saturation Analysis
+    //-------------------------------------------------------
     float3 rgb = make_float3(p_R, p_G, p_B);
+    float brightness = (rgb.x + rgb.y + rgb.z) / 3.0f;
+    float falloff = 1.0f;
+    float highlightMask = _fminf(_fmaxf(brightness / falloff, 0.0f), 1.0f);
+
+    float sat = calculate_saturation(rgb);
+    float saturationThreshold = 0.25f;
+    float saturationMask = 1.0f - _fminf(_fmaxf((sat - saturationThreshold) / 0.25f, 0.0f), 1.0f);
+
+    //-------------------------------------------------------
+    // 2. Advanced Highlight Recovery with Screen-like Blend
+    //-------------------------------------------------------
+    // Use screen blend formula for smoother highlight rolloff:
+    // Screen(A,B) = 1 - (1-A)(1-B)
+    float boostedHighlight = _fminf(highlightMask, 1.0f);
+    float screenHighlight = 1.0f - (1.0f - boostedHighlight) * (1.0f - highlightMask);
+    float combinedHighlightMask = screenHighlight * saturationMask;
+    float shineMask = combinedHighlightMask * shineRecovery;
+
+    //-------------------------------------------------------
+    // 3. Density Protection for Dark Saturated Areas
+    //-------------------------------------------------------
+    // Create targeted protection for saturated shadows
+    float satProtectThreshold = 0.25f;
+    float protectFalloff = 0.1f;  // Sharper falloff for more precise control
+    float satProtectMask = _fminf(_fmaxf((sat - satProtectThreshold) / protectFalloff, 0.0f), 1.0f);
+    float darknessMask = 1.0f - brightness;  // Progressive protection in darker areas
+    float densityProtectMask = satProtectMask * darknessMask * densityRecovery;
+
+    //-------------------------------------------------------
+    // 4. Recovery Mask Combination and Color Adjustments
+    //-------------------------------------------------------
+    // Combine shine and density protection
+    float totalRecoveryMask = _fminf(shineMask + densityProtectMask, 1.0f);
     
-    // Step 1: Apply Density Adjustment
-    float3 densityAdjustedRGB = adjust_density(rgb, make_float3(1.0, 1.0, 1.0), density, densityFeather);
-    
-    // Step 2: Apply Vibrance Adjustment
+    // Apply sequential color adjustments
+    float3 densityAdjustedRGB = adjust_density(rgb, make_float3(1.0, 1.0, 1.0), density, 0.0f);
     float3 vibranceAdjustedRGB = adjustVibrance(densityAdjustedRGB, vibrance);
-    
-    // Step 3: Apply Saturation Adjustment
     float3 adjustedRGB = adjustSaturation(vibranceAdjustedRGB, saturation);
 
-    // Enhanced recovery calculations with better protection
-    float luma = luminance(rgb);
+    //-------------------------------------------------------
+    // 5. Highlight and Shadow Recovery
+    //-------------------------------------------------------
+    // Calculate luminance-based recovery masks
+    float luma = (rgb.x + rgb.y + rgb.z) / 3.0f;
     float highlightMaskStrength = luma * highlightRecovery;
     float shadowMaskStrength = (1.0f - luma) * shadowRecovery;
+    
+    // Combine recovery masks for final blend control
+    float recoveryMask = _fminf(highlightMaskStrength + shadowMaskStrength, 1.0f);
+    float totalMask = _fminf(highlightMaskStrength + shadowMaskStrength + totalRecoveryMask, 1.0f);
 
-    // Enhanced saturation protection from first code
-    float sat = calculate_saturation(rgb);
-    float brightness = compute_value_max_channel(rgb);
-    
-    // Enhanced protection for saturated colors
-    float saturationWeight = _powf(sat, 0.5f);  // More aggressive saturation protection
-    float brightnessWeight = _powf(brightness, 2.0f);  // Emphasize protection in brighter areas
-    
-    // Combine weights with bias towards saturation
-    float combinedWeight = _fmaxf(saturationWeight, brightnessWeight * 0.7f);
-    
-    // Calculate density recovery mask with enhanced protection
-    float densityFeatherMask = densityFeather * _fminf(combinedWeight, 1.0f);
-    
-    // Combine all recovery masks
-    float combinedMask = _fminf(highlightMaskStrength + shadowMaskStrength + densityFeatherMask, 1.0f);
+    //-------------------------------------------------------
+    // 6. Final Blending and Output
+    //-------------------------------------------------------
+    // Two-stage blending for precise control
+    float3 maskedAdjustment = mix3(rgb, adjustedRGB, 1.0f - totalRecoveryMask);
+    float3 outRGB = maskedAdjustment * (1.0f - recoveryMask) + rgb * recoveryMask;
 
-    // Blend the adjusted color with the original based on the combined mask
-    float3 outRGB = adjustedRGB * (1.0f - combinedMask) + rgb * combinedMask;
-
-    // Optionally, if the "View Mask" checkbox is enabled, output the mask as a grayscale image
+    // Mask visualization
     if (showMask) {
-        return make_float3(combinedMask, combinedMask, combinedMask);
+        return make_float3(totalMask, totalMask, totalMask);
     }
 
     return outRGB;
