@@ -96,17 +96,21 @@ DEFINE_UI_TOOLTIP(Shadow Recovery, "Restores original shadow values")
 
 // Density
 DEFINE_UI_PARAMS(densityRecovery, Density Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)           // Slider for Density recovery
-DEFINE_UI_TOOLTIP(Density Recovery, "Restores bright, saturated colors")
+DEFINE_UI_TOOLTIP(Density Recovery, "Restores dark, saturated colors")
+
+// Shine
+DEFINE_UI_PARAMS(shineRecovery, Shine, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
+DEFINE_UI_TOOLTIP(Shine, "Preserves original values in bright, unsaturated areas")
 
 // View Mask Checkbox
 DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)                           // Checkbox to toggle viewing of the combined mask
 
 // Saturation Type ComboBox
-DEFINE_UI_PARAMS(pMathType, Saturation Type, DCTLUI_COMBO_BOX, 0, {saturationMath, vibranceMath}, {Saturation, Vibrance})
+DEFINE_UI_PARAMS(pMathType, Saturation Type, DCTLUI_COMBO_BOX, 0, {saturationMath, vibranceMath}, {Saturation, Vibrance}) 
 DEFINE_UI_TOOLTIP(Saturation Type, "How Saturation is applied")
 
 // Falloff Curve Type ComboBox
-DEFINE_UI_PARAMS(pCurveType, Falloff Curve, DCTLUI_COMBO_BOX, 1, {smoothStepFalloffType, bellCurveFalloffType}, {Smooth Step, Bell Curve})
+DEFINE_UI_PARAMS(pCurveType, Falloff Curve, DCTLUI_COMBO_BOX, 0, {bellCurveFalloffType, smoothStepFalloffType }, {Bell Curve, SmoothStep})
 DEFINE_UI_TOOLTIP(Falloff Curve, "How Hues are blended together")
 
 //------------------------------------------------------------------------------
@@ -406,8 +410,10 @@ __DEVICE__ float smoothstepFalloff(float hueDeg, float hueCenterDeg, float fallo
     float x = _clampf(1.0f - (hueDist / falloffWidth), 0.0f, 1.0f);
     
     // Smoothstep function: 3x^2 - 2x^3
+    x = powf(x, 0.6f);
     return x * x * (3.0f - 2.0f * x);
 }
+
 
 //------------------------------------------------------------------------------
 // Function: computeHueMask
@@ -422,11 +428,75 @@ __DEVICE__ float smoothstepFalloff(float hueDeg, float hueCenterDeg, float fallo
 //------------------------------------------------------------------------------
 
 __DEVICE__ float computeHueMask(float hueDeg, float hueCenterDeg, float falloffWidth, float pCurveType) {
-    if (pCurveType == 0) {
+    if (pCurveType == 1) {
         return smoothstepFalloff(hueDeg, hueCenterDeg, falloffWidth);
     } else {
         return bellCurveFalloff(hueDeg, hueCenterDeg, falloffWidth);
     }
+}
+
+//------------------------------------------------------------------------------
+// Function: calculate_saturation_tetrahedral
+// Description: Calculates color saturation using a tetrahedral approach, which
+//              provides smoother transitions and better handling of near-neutral
+//              colors compared to traditional min/max methods.
+//
+// Parameters:
+//   rgb - Input color as float3 (RGB values should be in range [0,1])
+//
+// Returns:
+//   float - Saturation value in range [0,1]
+//          0.0 = Completely desaturated (grayscale)
+//          1.0 = Fully saturated
+//
+// Implementation Details:
+//   1. Finds max, min, and middle RGB components to determine color position
+//      within the RGB cube
+//   2. Uses tetrahedral interpolation by considering the middle component's
+//      position relative to min/max
+//   3. Weights the middle component (0.5) to smooth transitions between
+//      different color regions
+//   4. Includes safeguards against division by zero for very dark colors
+//
+// Mathematical Background:
+//   - Traditional saturation = (max-min)/max
+//   - Tetrahedral adds mid component consideration for better color space
+//     handling, especially in areas where two channels are similar
+//------------------------------------------------------------------------------
+
+__DEVICE__ float calculate_saturation_tetrahedral(float3 rgb) {
+    float r = rgb.x;
+    float g = rgb.y;
+    float b = rgb.z;
+    
+    // Find the min and max components
+    float max_rgb = _fmaxf(_fmaxf(r, g), b);
+    float min_rgb = _fminf(_fminf(r, g), b);
+    
+    // Find the mid component using conditional logic
+    float mid_rgb;
+    if (r > g) {
+        if (g > b) mid_rgb = g;       // Case: r > g > b
+        else if (r > b) mid_rgb = b;  // Case: r > b > g
+        else mid_rgb = r;             // Case: b > r > g
+    } else {
+        if (r > b) mid_rgb = r;       // Case: g > r > b
+        else if (g > b) mid_rgb = b;  // Case: g > b > r
+        else mid_rgb = g;             // Case: b > g > r
+    }
+    
+    // Protect against division by zero for very dark colors
+    if (max_rgb < EPSILON) return 0.0f;
+    
+    // Calculate color differences for tetrahedral interpolation
+    float chroma = max_rgb - min_rgb;
+    float mid_diff = mid_rgb - min_rgb;
+    
+    // Calculate saturation with middle component weighting
+    float saturation = (chroma + mid_diff * 0.5f) / (_fmaxf(max_rgb, 0.0001f));
+    
+    // Ensure output is in valid range [0,1]
+    return _fminf(saturation, 1.0f);
 }
 
 //------------------------------------------------------------------------------
@@ -623,36 +693,169 @@ __DEVICE__ float3 adjustHueRotation(float3 rgb, float hueShift) {
 }
 
 //------------------------------------------------------------------------------
+// Function: applyOverlappingAdjustments
+// Description: Manages color adjustments across overlapping hue regions by applying
+//              smooth transitions and preventing excessive cumulative effects.
+// Parameters:
+//   workingRGB - Input RGB color to adjust
+//   adjustmentValues[7] - Array of adjustment values for each hue region
+//   masks[7] - Array of mask values controlling adjustment strength per region
+//   protectMask - Protection mask for density adjustments
+//   adjustmentType - Type of adjustment (0=Density, 1=Saturation, 2=Hue)  
+//   pMathType - Math model for saturation calculations
+// Returns:
+//   Adjusted RGB color with controlled overlapping effects
+//------------------------------------------------------------------------------
+
+
+__DEVICE__ float3 applyOverlappingAdjustments(float3 workingRGB, const float adjustmentValues[7], const float masks[7], float protectMask, int adjustmentType, int pMathType) {
+   // Initialize working variables
+   float3 result = workingRGB;
+   float totalMask = 0.0f;
+   float maxAdjustment = adjustmentType == 2 ? 0.0f : 1.0f;
+   
+   // Calculate total mask influence and find strongest adjustment
+   for (int i = 0; i < 7; i++) {
+       totalMask += masks[i];
+       float value = adjustmentType == 0 ? 
+           mixf(adjustmentValues[i], 1.0f, protectMask) : 
+           adjustmentValues[i];
+           
+       // Track maximum non-hue adjustment value
+       if (adjustmentType != 2 && _fabs(value - 1.0f) > _fabs(maxAdjustment - 1.0f)) {
+           maxAdjustment = value;
+       }
+   }
+   
+   // Process regions with no significant overlap normally
+   if (totalMask <= (1.0 + EPSILON)) {
+       for (int i = 0; i < 7; i++) {
+           if (masks[i] > 0.0f) {
+               float value = adjustmentType == 0 ?
+                   mixf(adjustmentValues[i], 1.0f, protectMask) :
+                   adjustmentValues[i];
+                   
+               // Apply appropriate adjustment based on type
+               switch (adjustmentType) {
+                   case 0: // Density adjustment
+                       result = adjustDensityWithMask(result, value, masks[i], 0.0f);
+                       break;
+                   case 1: // Saturation adjustment 
+                       result = adjustSaturationWithMask(result, value, masks[i], pMathType);
+                       break;
+                   case 2: // Hue adjustment (if significant)
+                       if (_fabs(value) > 0.000001f) {
+                           result = adjustHueRotation(result, value * masks[i]);
+                       }
+                       break;
+               }
+           }
+       }
+   } else {
+       // Handle overlapping regions with smooth transitions
+       float overlapFactor = _powf(1.0f / totalMask, 0.5f);
+       
+       for (int i = 0; i < 7; i++) {
+           if (masks[i] > 0.0f) {
+               float value = adjustmentType == 0 ?
+                   mixf(adjustmentValues[i], 1.0f, protectMask) :
+                   adjustmentValues[i];
+               
+               // Scale mask strength while preserving adjustment
+               float adjustedMask = masks[i] * overlapFactor;
+               
+               switch (adjustmentType) {
+                   case 0: { // Density with overlap control
+                       float effectiveDensity = value;
+                       if (totalMask > 1.0f) {
+                           effectiveDensity = 1.0f + (value - 1.0f) * adjustedMask;
+                       }
+                       result = adjustDensityWithMask(result, effectiveDensity, adjustedMask, 0.0f);
+                       break;
+                   }
+                   case 1: { // Saturation with overlap control
+                       float effectiveSat = value;
+                       if (totalMask > 1.0f) {
+                           effectiveSat = 1.0f + (value - 1.0f) * adjustedMask;
+                       }
+                       result = adjustSaturationWithMask(result, effectiveSat, adjustedMask, pMathType);
+                       break;
+                   }
+                   case 2: { // Hue with scaled influence
+                       if (_fabs(value) > EPSILON) {
+                           result = adjustHueRotation(result, value * adjustedMask);
+                       }
+                       break;
+                   }
+               }
+           }
+       }
+   }
+   
+   return result;
+}
+
+//------------------------------------------------------------------------------
 // Main Transformation Function
 //------------------------------------------------------------------------------
 // Function: transform
-// Description: Main transformation function that adjusts hue-specific color properties.
-//              The process includes:
-//              1. Converting the input RGB color to HSV to obtain the hue in degrees.
-//              2. Computing individual hue masks for red, skintone, yellow, green, cyan, blue, and magenta.
-//              3. Compensating for overlap among the hue masks.
-//              4. Applying density and saturation adjustments for each hue region based on their masks.
-//              5. Combining hue shifts from all regions.
-//              6. Applying a final hue rotation if needed.
-//              7. Applying highlight and shadow recovery by blending with the original color.
-//              8. Applying density recovery by blending with the original color.
+// Description: Main color transformation function that performs hue-specific 
+// adjustments with recovery mechanisms. Process flow:
+// 1. Calculate shine and density protection masks
+// 2. Generate hue-based masks for each color region
+// 3. Apply density, saturation and hue adjustments
+// 4. Blend with recovery masks for highlights/shadows
+// 5. Apply final recovery and blending
+//
 // Parameters:
-//   p_Width, p_Height - Full image dimensions.
-//   p_X, p_Y        - Pixel coordinates.
-//   p_R, p_G, p_B   - Input red, green, and blue channel values.
-// Returns:
-//   The final output color (float3) after all hue-specific adjustments.
+//   p_Width, p_Height - Image dimensions (unused)
+//   p_X, p_Y - Pixel coordinates (unused)
+//   p_R, p_G, p_B - Input RGB values [0.0-1.0]
 //------------------------------------------------------------------------------
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
+    //-------------------------------------------------------
+    // 0) Setup: Original color + a working copy
+    //-------------------------------------------------------
     float3 originalRGB = make_float3(p_R, p_G, p_B);
-    float3 adjustedRGB = originalRGB;
+    float3 workingRGB  = originalRGB;
 
-    // Compute masks based on the input RGB
+    //-------------------------------------------------------
+    // 1) Highlight-based Shine Mask (from ORIGINAL)
+    //-------------------------------------------------------
+    float brightness = (originalRGB.x + originalRGB.y + originalRGB.z) / 3.0f;
+    float falloff = 1.0f;
+    float highlightMask = _fminf(_fmaxf(brightness / falloff, 0.0f), 1.0f);
+
+    float sat = calculate_saturation_tetrahedral(originalRGB);
+    float saturationThreshold = 0.25f;
+    float saturationMask = 1.0f - _fminf(_fmaxf((sat - saturationThreshold) / 0.25f, 0.0f), 1.0f);
+
+    // Screen-like formula for highlight mask: 1 - (1-A)(1-B)
+    float boostedHighlight = _fminf(highlightMask * 2.0f, 1.0f);  // Boost but clamp to 1
+    float screenHighlight = 1.0f - (1.0f - boostedHighlight) * (1.0f - highlightMask);
+    float combinedHighlightMask = screenHighlight * saturationMask;
+    float shineMask = combinedHighlightMask * shineRecovery;
+
+    //-------------------------------------------------------
+    // 2) Density-Protect Mask (from ORIGINAL sat)
+    //-------------------------------------------------------
+    // Add density protection mask for dark saturated areas
+    float satProtectThreshold = 0.25f;
+    float protectFalloff = 0.1f;
+    float satProtectMask = _fminf(_fmaxf((sat - satProtectThreshold) / protectFalloff, 0.0f), 1.0f);
+    float darknessMask = 1.0f - brightness; // More effect on darker areas
+    float densityProtectMask = satProtectMask * darknessMask * densityRecovery;
+
+    // Combine both recovery masks
+    float totalRecoveryMask = _fminf(shineMask + densityProtectMask, 1.0f);
+
+    //-------------------------------------------------------
+    // 3) Hue-Based Masks + Overlap Compensation
+    //-------------------------------------------------------
     float3 hsvOriginal = RGB_to_HSV(originalRGB);
     float hueDegOriginal = hsvOriginal.x * 360.0f;
 
-    // Compute masks for each hue with enhanced strength
     float maskRed = computeHueMask(hueDegOriginal, 0.0f, falloffRed, pCurveType);
     float maskSkin = computeHueMask(hueDegOriginal, 30.0f, falloffSkin, pCurveType);
     float maskYellow = computeHueMask(hueDegOriginal, 60.0f, falloffYellow, pCurveType);
@@ -661,96 +864,81 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     float maskBlue = computeHueMask(hueDegOriginal, 240.0f, falloffBlue, pCurveType);
     float maskMagenta = computeHueMask(hueDegOriginal, 300.0f, falloffMagenta, pCurveType);
 
-    // Calculate total mask weight for overlap compensation
-    float totalMask = maskRed + maskSkin + maskYellow + maskGreen + maskCyan + maskBlue + maskMagenta;
+    float hueTotalMask = maskRed + maskSkin + maskYellow + maskGreen + maskCyan + maskBlue + maskMagenta;
 
-    // Only adjust overlap compensation when there is significant overlap
-    if (totalMask > 1.0f + EPSILON) {
-        float overlapFactor = _powf(1.0f / totalMask, 0.5f); // Square root for gentler compensation
+    // Only normalize if there is significant overlap
+    if (hueTotalMask > 1.0f + EPSILON) {
+        // Find strongest mask influence
+        float maxMask = _fmaxf(maskRed, _fmaxf(maskSkin, _fmaxf(maskYellow, 
+                    _fmaxf(maskGreen, _fmaxf(maskCyan, _fmaxf(maskBlue, maskMagenta))))));
         
-        // Scale masks to compensate for overlap while preserving strength
-        maskRed *= overlapFactor;
-        maskSkin *= overlapFactor;
-        maskYellow *= overlapFactor;
-        maskGreen *= overlapFactor;
-        maskCyan *= overlapFactor;
-        maskBlue *= overlapFactor;
-        maskMagenta *= overlapFactor;
+        // Calculate softer normalization factor
+        float overlapStrength = (hueTotalMask - 1.0f) / hueTotalMask;
+        float normalizeStrength = 0.5f; // Adjust this to control overlap strength
+        float softFactor = 1.5f - (overlapStrength * normalizeStrength); // Adjust this to control overall strength
+        
+        // Apply normalization weighted by how strong each mask is relative to the maximum
+        maskRed *= mixf(maskRed/hueTotalMask, maskRed/maxMask, softFactor);
+        maskSkin *= mixf(maskSkin/hueTotalMask, maskSkin/maxMask, softFactor);
+        maskYellow *= mixf(maskYellow/hueTotalMask, maskYellow/maxMask, softFactor);
+        maskGreen *= mixf(maskGreen/hueTotalMask, maskGreen/maxMask, softFactor);
+        maskCyan *= mixf(maskCyan/hueTotalMask, maskCyan/maxMask, softFactor);
+        maskBlue *= mixf(maskBlue/hueTotalMask, maskBlue/maxMask, softFactor);
+        maskMagenta *= mixf(maskMagenta/hueTotalMask, maskMagenta/maxMask, softFactor);
     }
 
-    // Apply density adjustments with enhanced effect
-    if (_fabs(densityRed - 1.0f) > EPSILON) 
-        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityRed, maskRed, densityRecovery);
-    if (_fabs(densitySkin - 1.0f) > EPSILON)
-        adjustedRGB = adjustDensityWithMask(adjustedRGB, densitySkin, maskSkin, densityRecovery);
-    if (_fabs(densityYellow - 1.0f) > EPSILON)
-        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityYellow, maskYellow, densityRecovery);
-    if (_fabs(densityGreen - 1.0f) > EPSILON)
-        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityGreen, maskGreen, densityRecovery);
-    if (_fabs(densityCyan - 1.0f) > EPSILON)
-        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityCyan, maskCyan, densityRecovery);
-    if (_fabs(densityBlue - 1.0f) > EPSILON)
-        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityBlue, maskBlue, densityRecovery);
-    if (_fabs(densityMagenta - 1.0f) > EPSILON)
-        adjustedRGB = adjustDensityWithMask(adjustedRGB, densityMagenta, maskMagenta, densityRecovery);
+    //-------------------------------------------------------
+    // 4-6) Apply All Color Adjustments with Overlap Protection
+    //-------------------------------------------------------
+    float masks[7] = {
+        maskRed, maskSkin, maskYellow,
+        maskGreen, maskCyan, maskBlue, maskMagenta
+    };
+
+    // Apply density adjustments
+    const float densityValues[7] = {
+        densityRed, densitySkin, densityYellow, 
+        densityGreen, densityCyan, densityBlue, densityMagenta
+    };
+    workingRGB = applyOverlappingAdjustments(workingRGB, densityValues, masks,
+                                            densityProtectMask, 0, pMathType);
 
     // Apply saturation adjustments
-    if (_fabs(saturationRed - 1.0f) > EPSILON)
-        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationRed, maskRed, pMathType);
-    if (_fabs(saturationSkin - 1.0f) > EPSILON)
-        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationSkin, maskSkin, pMathType);
-    if (_fabs(saturationYellow - 1.0f) > EPSILON)
-        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationYellow, maskYellow, pMathType);
-    if (_fabs(saturationGreen - 1.0f) > EPSILON)
-        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationGreen, maskGreen, pMathType);
-    if (_fabs(saturationCyan - 1.0f) > EPSILON)
-        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationCyan, maskCyan, pMathType);
-    if (_fabs(saturationBlue - 1.0f) > EPSILON)
-        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationBlue, maskBlue, pMathType);
-    if (_fabs(saturationMagenta - 1.0f) > EPSILON)
-        adjustedRGB = adjustSaturationWithMask(adjustedRGB, saturationMagenta, maskMagenta, pMathType);
+    const float saturationValues[7] = {
+        saturationRed, saturationSkin, saturationYellow,
+        saturationGreen, saturationCyan, saturationBlue, saturationMagenta
+    };
+    workingRGB = applyOverlappingAdjustments(workingRGB, saturationValues, masks,
+                                            0.0f, 1, pMathType);
 
     // Apply hue shifts
-    float totalHueShift = 
-        hueShiftRed * maskRed +
-        hueShiftSkin * maskSkin +
-        hueShiftYellow * maskYellow +
-        hueShiftGreen * maskGreen +
-        hueShiftCyan * maskCyan +
-        hueShiftBlue * maskBlue +
-        hueShiftMagenta * maskMagenta;
+    const float hueValues[7] = {
+        hueShiftRed, hueShiftSkin, hueShiftYellow,
+        hueShiftGreen, hueShiftCyan, hueShiftBlue, hueShiftMagenta
+    };
+    workingRGB = applyOverlappingAdjustments(workingRGB, hueValues, masks,
+                                            0.0f, 2, pMathType);
 
-    if (_fabs(totalHueShift) > EPSILON) {
-        adjustedRGB = adjustHueRotation(adjustedRGB, totalHueShift);
-    }
+    //-------------------------------------------------------
+    // 7) Apply Recovery Masks and Final Blending
+    //-------------------------------------------------------
+    // First blend using the recovery masks
+    float3 maskedAdjustment = mix3(originalRGB, workingRGB, 1.0f - totalRecoveryMask);
 
-    // Enhanced recovery calculations for better protection of saturated colors
-    float luma = luminance(originalRGB);
+    // Then apply highlight/shadow recovery
+    float luma = (originalRGB.x + originalRGB.y + originalRGB.z) / 3.0f;
     float highlightMaskStrength = luma * highlightRecovery;
     float shadowMaskStrength = (1.0f - luma) * shadowRecovery;
+    float recoveryMask = _fminf(highlightMaskStrength + shadowMaskStrength, 1.0f);
 
-    // Enhanced saturation protection
-    float sat = calculate_saturation(originalRGB);
-    float brightness = compute_value_max_channel(originalRGB);
-    
-    // Enhanced protection for saturated colors
-    float saturationWeight = _powf(sat, 0.5f);  // More aggressive saturation protection
-    float brightnessWeight = _powf(brightness, 2.0f);  // Emphasize protection in brighter areas
-    
-    // Combine weights with bias towards saturation
-    float combinedWeight = _fmaxf(saturationWeight, brightnessWeight * 0.7f);
-    
-    // Calculate final recovery mask with enhanced protection
-    float densityRecoveryMask = densityRecovery * _fminf(combinedWeight, 1.0f);
-    
-    // Combine all recovery masks
-    float recoveryMask = _fminf(highlightMaskStrength + shadowMaskStrength + densityRecoveryMask, 1.0f);
+    float3 outRGB = maskedAdjustment * (1.0f - recoveryMask) + originalRGB * recoveryMask;
 
-    float3 outRGB = mix3(adjustedRGB, originalRGB, recoveryMask);
-
+    //-------------------------------------------------------
+    // 8) Show mask for debugging (optional)
+    //-------------------------------------------------------
+    float totalMask = _fminf(highlightMaskStrength + shadowMaskStrength + totalRecoveryMask, 1.0f);
     if (showMask) {
-        float displayMask = totalMask;
-        return make_float3(displayMask, displayMask, displayMask);
+        return make_float3(totalMask, totalMask, totalMask);
     }
 
     return outRGB;
