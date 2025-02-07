@@ -15,7 +15,7 @@ Colorspace transform with ACEs & Davinci tone mapping, a filmic one, reinhard an
 ---
 
 ### mColorTune
-Alters the hue, density and saturation of specific colors, with sliders to restore the original images density & shine. 
+Alters the hue, density and saturation of specific colors, with optional recovery for hilights, shadows, density and shine
 
 ---
 
@@ -26,4 +26,34 @@ Allows you to adjust the exposure of fooage in stops with seperate sliders for h
 
 ### mGuides
 Renders guide elements Rule of Thirds, Golden Ratio, Golden Spiral, Crosshair on-screen with adjustable opacity, color, and visibility. Useful for analysis of cinematography. 
+
+--- 
+
+### mFalse Color 
+Renders a false color overlay based on the ARRI false color values. 
+
+---
+
+### mMeters
+Renders the EL ZONE overlay based on stops. Also has a heat Map for simple hotspot finding. 
+
+---
+
+### mSaturation
+Increase or decrease saturation, vibrance or density with optional recovery for hilights, shadows, density and shine
+
+---
+
+### mSkin
+Renders an overlay that lets you see if specified target skintone is too red or too yellow. 
+
+---
+
+### mTemp
+Adjusts color temperature based on the Black Body Radiator model, supporting multiple color spaces and transfer functions. Has a custom and auto option. The auto option can be useful if working with white cycs
+
+---
+
+### zCCTF <--- Required
+Contains all the Color Convertions and Transfer Fucntions. Most DCTL's require this and it needs to be in the same folder ad the DCTLs you're using. 
 
