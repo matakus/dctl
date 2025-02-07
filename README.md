@@ -25,5 +25,5 @@ Allows you to adjust the exposure of fooage in stops with seperate sliders for h
 ---
 
 ### mGuides
-Renders guide elements Rule of Thirds, Golden Ratio, Golden Spiral, Crosshair on-screen with adjustable opacity, color, and visibility. Useful for analysis of cinematography you like.  
+Renders guide elements Rule of Thirds, Golden Ratio, Golden Spiral, Crosshair on-screen with adjustable opacity, color, and visibility. Useful for analysis of cinematography. 
 
