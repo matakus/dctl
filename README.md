@@ -1,7 +1,7 @@
 # dctls
 ---
 
-A collection of DCTL's that are sort of useful, sort of not.
+### A collection of DCTL's that are sort of useful, sort of not.
 
 #### I've attempted to comment them so you can see what's happening and change anything you dont like or can improve on. Colour is spelt the way of the cheeseburger people (Color). 
 
@@ -17,7 +17,7 @@ Colorspace transform with ACEs & Davinci tone mapping, a filmic one, reinhard an
 ---
 
 ### mColorTune
-Alters the hue, density and saturation of specific colors, with optional recovery for hilights, shadows, density and shine
+Alters the hue, density and saturation of specific colors, with optional recovery for highlights, shadows, density and shine
 
 ---
 
