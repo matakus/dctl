@@ -42,7 +42,7 @@ Renders the EL ZONE overlay based on stops. Also has a heat Map for simple hotsp
 ---
 
 ### mSaturation
-Increase or decrease saturation, vibrance or density with optional recovery for hilights, shadows, density and shine
+Increase or decrease saturation, vibrance or density with optional recovery for highlights, shadows, density and shine
 
 ---
 
