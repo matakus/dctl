@@ -57,5 +57,5 @@ Adjusts color temperature based on the Black Body Radiator model, supporting mul
 ---
 
 ### zCCTF <--- Required
-Contains all the Color Convertions and Transfer Fucntions. Most DCTL's require this and it needs to be in the same folder ad the DCTLs you're using. 
+Contains all the Color Convertions and Transfer Fucntions. Most DCTL's require this and it needs to be in the same folder as the DCTLs you're using. 
 
