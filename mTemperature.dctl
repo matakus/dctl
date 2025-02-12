@@ -512,9 +512,17 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
     // 5. Convert the final linear color back to log space.
     float3 linRGB = inputConversion.logToLinFunc(inputRGB);
     float3 XYZ = inputConversion.colorspaceToXYZFunc(linRGB);
-    float3 adaptedXYZ = applyCAT02Adaptation(XYZ, tintedSourceWhiteXYZ, targetWhiteXYZ);
+    float3 adaptedXYZ;
+    // For Temperature mode, adapt from camera white (p_InputTemperature) to target Kelvin.
+    // For Custom/Auto mode, swap so that we adapt from the measured (picked/average) white
+    // to the camera’s reference white.
+    if (p_Mode == 0) {
+        adaptedXYZ = applyCAT02Adaptation(XYZ, tintedSourceWhiteXYZ, targetWhiteXYZ);
+    } else {
+        adaptedXYZ = applyCAT02Adaptation(XYZ, targetWhiteXYZ, tintedSourceWhiteXYZ);
+    }
+    
     float3 linOut = outputConversion.XYZtoColorspaceFunc(adaptedXYZ);
     float3 finalRGB = outputConversion.linToLogFunc(linOut);
-
     return finalRGB;
 }
