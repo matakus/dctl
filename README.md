@@ -51,8 +51,8 @@ Renders an overlay that lets you see if specified target skintone is too red or 
 
 ---
 
-### mTemp
-Adjusts color temperature based on the Black Body Radiator model, supporting multiple color spaces and transfer functions. Has a custom and auto option. The auto option can be useful if working with white cycs
+### mTemperature
+Adjusts color temperature based on the Black Body Radiator model, supporting multiple color spaces and transfer functions. Has a custom and auto option. The auto option can be useful if you want to quickly check based on an average.
 
 ---
 
