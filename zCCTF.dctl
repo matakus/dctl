@@ -506,30 +506,32 @@ __DEVICE__ float3 XYZtoCanonCinemaGamut(float3 in) {
 /////////////////////// CINEON ///////////////////////
 //////////////////////////////////////////////////////
 
-// Cineon Film Log - Classic film scanning log format
 __DEVICE__ float3 logToLinCineon(float3 in) {
-    // Constants for Cineon transform
-    float black_offset = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
-    float scale = 1.0f / (1.0f - black_offset);
+    const float BLACK_OFFSET = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
     
     return make_float3(
-        (_powf(10.0f, (1023.0f * in.x - 685.0f) / 300.0f) - black_offset) * scale,
-        (_powf(10.0f, (1023.0f * in.y - 685.0f) / 300.0f) - black_offset) * scale,
-        (_powf(10.0f, (1023.0f * in.z - 685.0f) / 300.0f) - black_offset) * scale
+        (_powf(10.0f, (1023.0f * in.x - 685.0f) / 300.0f) - BLACK_OFFSET) / (1.0f - BLACK_OFFSET),
+        (_powf(10.0f, (1023.0f * in.y - 685.0f) / 300.0f) - BLACK_OFFSET) / (1.0f - BLACK_OFFSET),
+        (_powf(10.0f, (1023.0f * in.z - 685.0f) / 300.0f) - BLACK_OFFSET) / (1.0f - BLACK_OFFSET)
     );
 }
 
 __DEVICE__ float3 linToLogCineon(float3 in) {
-    // Constants for Cineon transform
-    float black_offset = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
-    float scale = 1.0f - black_offset;
+    const float BLACK_OFFSET = _powf(10.0f, (95.0f - 685.0f) / 300.0f);
+    
+    float3 safe = make_float3(
+        _fmaxf(in.x, 0.0000001),
+        _fmaxf(in.y, 0.0000001),
+        _fmaxf(in.z, 0.0000001)
+    );
     
     return make_float3(
-        (685.0f + 300.0f * _log10f(in.x * scale + black_offset)) / 1023.0f,
-        (685.0f + 300.0f * _log10f(in.y * scale + black_offset)) / 1023.0f,
-        (685.0f + 300.0f * _log10f(in.z * scale + black_offset)) / 1023.0f
+        (685.0f + 300.0f * _log10f(safe.x * (1.0f - BLACK_OFFSET) + BLACK_OFFSET)) / 1023.0f,
+        (685.0f + 300.0f * _log10f(safe.y * (1.0f - BLACK_OFFSET) + BLACK_OFFSET)) / 1023.0f,
+        (685.0f + 300.0f * _log10f(safe.z * (1.0f - BLACK_OFFSET) + BLACK_OFFSET)) / 1023.0f
     );
 }
+
 
 ///////////////////////////////////////////////////
 /////////////////////// DJI ///////////////////////
