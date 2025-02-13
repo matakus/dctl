@@ -402,11 +402,28 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p
     // 3. Density Protection for Dark Saturated Areas
     //-------------------------------------------------------
     // Create targeted protection for saturated shadows
+    // Improved density protection with smoother transitions
     float satProtectThreshold = 0.25f;
-    float protectFalloff = 0.1f;  // Sharper falloff for more precise control
-    float satProtectMask = _fminf(_fmaxf((sat - satProtectThreshold) / protectFalloff, 0.0f), 1.0f);
-    float darknessMask = 1.0f - brightness;  // Progressive protection in darker areas
-    float densityProtectMask = satProtectMask * darknessMask * densityRecovery;
+    float protectFalloff = 0.25f;  // Increased for smoother transitions
+        
+    // Smoothstep-based saturation mask for smoother transitions
+    float t = (sat - satProtectThreshold) / protectFalloff;
+    t = _fmaxf(0.0f, _fminf(1.0f, t));
+    float satProtectMask = t * t * (3.0f - 2.0f * t); // Smoothstep function
+        
+    // Improved darkness mask with gamma correction for more natural falloff
+    float darknessGamma = 2.0f;
+    float darknessMask = powf(1.0f - brightness, darknessGamma);
+        
+    // Gaussian-like falloff for density protection
+    float densityStrength = densityRecovery * densityRecovery; // Squared for smoother response
+    float densityProtectMask = satProtectMask * darknessMask * densityStrength;
+        
+    // Additional smoothing for edge transitions
+    float edgeRadius = 0.1f;
+    densityProtectMask = _fmaxf(0.0f, _fminf(1.0f, 
+        densityProtectMask * (1.0f - _powf(_fmaxf(0.0f, brightness - (1.0f - edgeRadius)), 0.5f))
+    ));
 
     //-------------------------------------------------------
     // 4. Recovery Mask Combination and Color Adjustments
