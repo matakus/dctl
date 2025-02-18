@@ -12,7 +12,7 @@ Allows you to add a matte to your footage
 ---
 
 ### mCST
-Colorspace transform with ACEs & Davinci tone mapping, a filmic one, reinhard and a hybird mix. Has a few saturation compression options as well.
+Colorspace transform with ACEs & Davinci tone mapping, a filmic one, reinhard and a hybird mix. Has a few saturation compression options as well. Still very much a WIP and will likely change alot.
 
 ---
 
