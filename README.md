@@ -3,7 +3,7 @@
 
 ### A collection of DCTL's that are sort of useful, sort of not.
 
-#### I've attempted to comment them so you can see what's happening and change anything you dont like or can improve on. Colour is spelt the cheeseburger way (Color). 
+#### I've attempted to comment them so you can see what's happening and change things you dont like or can improve on.
 
 ---
 ### mAspect Ratio
