@@ -178,8 +178,8 @@ __DEVICE__ XYCoordinates applyTintAdjustment(float x_in, float y_in, float dx_dT
     result.y = y_in;
 
     // Calculate the normal vector to the black body locus
-    float nx = -dy_dT;
-    float ny = dx_dT;
+    float nx = dy_dT;
+    float ny = -dx_dT;
 
     // Normalize the vector
     float length = sqrt(nx * nx + ny * ny);
@@ -450,6 +450,8 @@ __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTU
     // 1. Convert input temperature (Kelvin) to xy chromaticity coordinates.
     // 2. Apply tint adjustment.
     XYDerivatives sourceWhite = temperatureToXYandDerivatives(inputTemperature);
+    // For temperature mode, invert the tint value since we're adapting from source to target
+    float adjustedTint = (p_Mode == 0) ? -tint : tint;
     XYCoordinates coords = applyTintAdjustment(sourceWhite.x, sourceWhite.y, sourceWhite.dx_dT, sourceWhite.dy_dT, tint);
     // Convert the source white point to XYZ
     float3 tintedSourceWhiteXYZ = make_float3((1.0f / coords.y) * coords.x, 1.0f, (1.0f / coords.y) * (1.0f - coords.x - coords.y));
