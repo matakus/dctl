@@ -1,8 +1,9 @@
+#include "zCCTF.dctl"
 #line 2
 
-// Saturation and Density adjustments DCTL v1.06
+// Saturation and Density adjustments DCTL v1.07
 // Author: Matt.C
-// Description: Adjusts Saturation and Density of an image with masks to restore detail in shadows and highlights
+// Description: Adjusts Saturation and Density with recovery masks and Helmholtz-Kohlrausch effect compensation
 
 //------------------------------------------------------------------------------
 // UI PARAMETERS
@@ -14,8 +15,14 @@ DEFINE_UI_TOOLTIP(Saturation, "Saturation adjustment")
 DEFINE_UI_PARAMS(vibrance, Vibrance, DCTLUI_SLIDER_FLOAT, 1, 0, 2, 0.01)
 DEFINE_UI_TOOLTIP(Vibrance, "Saturation adjustment relative to Input Saturation")
 
+DEFINE_UI_PARAMS(vibranceBalance, Vibrance Balance, DCTLUI_SLIDER_FLOAT, 0.5, 0.0, 1.0, 0.01)
+DEFINE_UI_TOOLTIP(Vibrance Balance, "Balance between Targeted vs Uniform")
+
 DEFINE_UI_PARAMS(density, Density, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 2.0, 0.01)
 DEFINE_UI_TOOLTIP(Density, "Adjusts overall brightness with protection for saturated highlights")
+
+DEFINE_UI_PARAMS(helmholtzEffect, Helmholtz Effect, DCTLUI_SLIDER_FLOAT, 0, -1.0, 1.0, 0.01)
+DEFINE_UI_TOOLTIP(Helmholtz Effect, "Helmholtz-Kohlrausch effect strength")
 
 DEFINE_UI_PARAMS(highlightRecovery, Highlight Recovery, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_TOOLTIP(Highlight Recovery, "Preserves original values in the highlights")
@@ -29,228 +36,110 @@ DEFINE_UI_TOOLTIP(Density Recovery, "Prevents areas getting too dark")
 DEFINE_UI_PARAMS(shineRecovery, Shine, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
 DEFINE_UI_TOOLTIP(Shine, "Preserves original values in bright, unsaturated areas")
 
+DEFINE_UI_PARAMS(hkMethod, HK Method, DCTLUI_COMBO_BOX, 1, {VAC, VCC}, {Strong, Subtle})
+DEFINE_UI_TOOLTIP(HK Method, "Variable Achromatic Color (stronger) or Variable Chromatic Color (subtle)")
+
 DEFINE_UI_PARAMS(showMask, View Mask, DCTLUI_CHECK_BOX, 0)
 
-//------------------------------------------------------------------------------
-// REFERENCE VALUES
-//------------------------------------------------------------------------------
-
-#define EPSILON 1e-6f  // Small value to prevent division-by-zero errors
+#define EPSILON_VALUE 1e-6f
+__CONSTANT__ float pi = 3.14159265358979323846f;
 
 //------------------------------------------------------------------------------
 // HELPER FUNCTIONS
 //------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-// Function: powf
-// Description: Computes the power function for a float base and exponent,
-//              ensuring that the sign of the base is preserved.
-// Parameters:
-//   base - The base value.
-//   exp  - The exponent value.
-// Returns:
-//   The result of raising base to the power exp, preserving the base's sign.
-//------------------------------------------------------------------------------
 
+// Angle conversion
+__DEVICE__ float radians(float d) {return d * (pi / 180.0f);}
+__DEVICE__ float degrees(float r) {return r * (180.0f / pi);}
+__DEVICE__ float3 maxf3(float3 a, float b) { 
+    return make_float3(_fmaxf(a.x, b), _fmaxf(a.y, b), _fmaxf(a.z, b)); 
+}
+
+// Preserves sign when raising to a power
 __DEVICE__ float powf(float base, float exp) {
     return _copysignf(_powf(_fabs(base), exp), base);
 }
 
-//------------------------------------------------------------------------------
-// Function: mixf
-// Description: Mixes two float values based on factor t.
-// Parameters:
-//   a - The first value.
-//   b - The second value.
-//   t - The interpolation factor.
-// Returns:
-//   The interpolated value: a * (1 - t) + b * t.
-//------------------------------------------------------------------------------
-__DEVICE__ float mixf(float a, float b, float t) {
-    return a * (1.0f - t) + b * t;
-}
-
-//------------------------------------------------------------------------------
-// Function: mix3
-// Description: Mixes two float3 colors with gamma adjustment for smoother blending.
-// Parameters:
-//   a - The first color (float3).
-//   b - The second color (float3).
-//   t - The interpolation factor.
-// Returns:
-//   The interpolated color as a float3.
-//------------------------------------------------------------------------------
-
+// Mixes two colors with gamma smoothing
 __DEVICE__ float3 mix3(float3 a, float3 b, float t) {
-    t = powf(t, 1.5f); // Apply gamma to smooth the blending transition
+    t = powf(t, 1.5f);
     return make_float3(
         a.x * (1.0f - t) + b.x * t,
         a.y * (1.0f - t) + b.y * t,
         a.z * (1.0f - t) + b.z * t
     );
 }
-//------------------------------------------------------------------------------
-// Function: luminance
-// Description: Computes the luminance (perceived brightness) of an RGB color.
-//              Uses Rec. 709 coefficients.
-//------------------------------------------------------------------------------
 
-__DEVICE__ float luminance(float3 rgb) {
-    return 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z;
-}
-
-//------------------------------------------------------------------------------
-// Function: calculate_saturation
-// Description: Calculates the saturation of an RGB color.
-//              Saturation is defined as the difference between the maximum and minimum
-//              channel values normalized by the maximum value.
-// Parameters:
-//   rgb - The input color as a float3 (R, G, B).
-// Returns:
-//   The saturation level (returns 0.0 if the color is black).
-//------------------------------------------------------------------------------
+// Calculates RGB saturation
 __DEVICE__ float calculate_saturation(float3 rgb) {
     float maxVal = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
     float minVal = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
     return maxVal == 0.0f ? 0.0f : (maxVal - minVal) / maxVal;
 }
 
-//------------------------------------------------------------------------------
-// Function: find_max_component
-// Description: Finds the maximum component value (R, G, or B) from an RGB color.
-// Parameters:
-//   color - The input color as a float3 (R, G, B).
-// Returns:
-//   The maximum of the R, G, and B values.
-//------------------------------------------------------------------------------
-
+// Returns max RGB component
 __DEVICE__ float find_max_component(float3 color) {
     return _fmaxf(_fmaxf(color.x, color.y), color.z);
 }
 
-//------------------------------------------------------------------------------
-// Function: apply_per_channel_gamma
-// Description: Applies per-channel gamma correction to an RGB color.
-// Parameters:
-//   color - The input color as a float3 (R, G, B).
-//   exp   - The gamma exponent values as a float3 for each channel.
-// Returns:
-//   The gamma-corrected color as a float3.
-//------------------------------------------------------------------------------
-
+// Applies per-channel gamma correction
 __DEVICE__ float3 apply_per_channel_gamma(float3 color, float3 exp) {
     return make_float3(powf(color.x, exp.x), powf(color.y, exp.y), powf(color.z, exp.z));
 }
 
-//------------------------------------------------------------------------------
-// Function: compute_value_max_component
-// Description: Computes the maximum channel value of an RGB color.
-// Parameters:
-//   color - The input color as a float3 (R, G, B).
-// Returns:
-//   The maximum value among the color's components.
-//------------------------------------------------------------------------------
-
+// Wrapper for find_max_component
 __DEVICE__ float compute_value_max_component(float3 color) {
     return find_max_component(color);
 }
 
-//------------------------------------------------------------------------------
-// Function: compute_density_mean
-// Description: Computes the mean of the RGB components, serving as an indicator of overall density.
-// Parameters:
-//   rgb - The input color as a float3 (R, G, B).
-// Returns:
-//   The average of the R, G, and B values.
-//------------------------------------------------------------------------------
-
+// Returns RGB average
 __DEVICE__ float compute_density_mean(float3 rgb) {
     return (rgb.x + rgb.y + rgb.z) / 3.0;
 }
 
-//------------------------------------------------------------------------------
-// Function: calculate_saturation_tetrahedral
-// Description: Calculates color saturation using a tetrahedral approach, which
-//              provides smoother transitions and better handling of near-neutral
-//              colors compared to traditional min/max methods.
-//
-// Parameters:
-//   rgb - Input color as float3 (RGB values should be in range [0,1])
-//
-// Returns:
-//   float - Saturation value in range [0,1]
-//          0.0 = Completely desaturated (grayscale)
-//          1.0 = Fully saturated
-//
-// Implementation Details:
-//   1. Finds max, min, and middle RGB components to determine color position
-//      within the RGB cube
-//   2. Uses tetrahedral interpolation by considering the middle component's
-//      position relative to min/max
-//   3. Weights the middle component (0.5) to smooth transitions between
-//      different color regions
-//   4. Includes safeguards against division by zero for very dark colors
-//
-// Mathematical Background:
-//   - Traditional saturation = (max-min)/max
-//   - Tetrahedral adds mid component consideration for better color space
-//     handling, especially in areas where two channels are similar
-//------------------------------------------------------------------------------
+// Extract value range from e0 to e1, clamped
+__DEVICE__ float extract(float e0, float e1, float x) {
+    return _clampf((x - e0) / (e1 - e0), 0.0f, 1.0f);
+}
 
-__DEVICE__ float calculate_saturation_tetrahedral(float3 rgb) {
-    float r = rgb.x;
-    float g = rgb.y;
-    float b = rgb.z;
-    
-    // Find the min and max components
-    float max_rgb = _fmaxf(_fmaxf(r, g), b);
-    float min_rgb = _fminf(_fminf(r, g), b);
-    
-    // Find the mid component using conditional logic
-    float mid_rgb;
-    if (r > g) {
-        if (g > b) mid_rgb = g;       // Case: r > g > b
-        else if (r > b) mid_rgb = b;  // Case: r > b > g
-        else mid_rgb = r;             // Case: b > r > g
-    } else {
-        if (r > b) mid_rgb = r;       // Case: g > r > b
-        else if (g > b) mid_rgb = b;  // Case: g > b > r
-        else mid_rgb = g;             // Case: b > g > r
-    }
-    
-    // Protect against division by zero for very dark colors
-    if (max_rgb < EPSILON) return 0.0f;
-    
-    // Calculate color differences for tetrahedral interpolation
-    float chroma = max_rgb - min_rgb;
-    float mid_diff = mid_rgb - min_rgb;
-    
-    // Calculate saturation with middle component weighting
-    float saturation = (chroma + mid_diff * 0.5f) / (_fmaxf(max_rgb, 0.0001f));
-    
-    // Ensure output is in valid range [0,1]
-    return _fminf(saturation, 1.0f);
+// Window function for hue angle extraction
+__DEVICE__ float extract_window(float e0, float e1, float e2, float e3, float x) {
+    return x < e1 ? extract(e0, e1, x) : extract(e3, e2, x);
+}
+
+// Extract hue angle based on parameters
+__DEVICE__ float extract_hue_angle(float h, float o, float w, int sm) {
+    float hc = extract_window(2.0f - w, 2.0f, 2.0f, 2.0f + w, _fmod(h + o, 6.0f));
+    if (sm == 1)
+      hc = hc * hc * (3.0f - 2.0f * hc); // smoothstep
+    return hc;
+}
+
+// Calculate hue (0-6 range)
+__DEVICE__ float calc_hue(float3 rgb) {
+    float mx = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+    float mn = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
+    float ch = mx - mn;
+    float h = 0.0f;
+    if (ch == 0.0f) h = 0.0f;
+    else if (mx == rgb.x) h = _fmod((rgb.y - rgb.z) / ch + 6.0f, 6.0f);
+    else if (mx == rgb.y) h = (rgb.z - rgb.x) / ch + 2.0f;
+    else if (mx == rgb.z) h = (rgb.x - rgb.y) / ch + 4.0f;
+    return h;
 }
 
 //------------------------------------------------------------------------------
-// SATURATION AND DENSITY FUNCTIONS
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-// Function: adjust_density
-// Description: Adjusts the density (brightness) of a color while preserving detail in saturated highlights.
-//              The process includes normalizing the color, applying gamma correction, and blending the
-//              adjusted color with the original based on a recovery mask.
-// Parameters:
-//   color         - The input color as a float3 (R, G, B).
-//   gamma         - Gamma correction factors as a float3.
-//   density_mixer - Controls the mix between maximum channel value and average density.
-//   feather       - Controls the strength of recovery (feathering) for bright, saturated areas.
-// Returns:
-//   The density-adjusted color as a float3.
+// ADJUSTMENT FUNCTIONS
 //------------------------------------------------------------------------------
 
+// Adjusts brightness while preserving saturated highlights
 __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer, float feather) {
+    if (density_mixer == 1.0f && feather == 0.0f) {
+        return color;
+    }
+    
     float max_channel_value = compute_value_max_component(color);
-    float3 normalized_color = color / _fmaxf(max_channel_value, 0.00001f);
+    float3 normalized_color = color / _fmaxf(max_channel_value, EPSILON_VALUE);
 
     float density = compute_density_mean(color);
     density = _mix(_fmaxf(max_channel_value, 0.0f), _fmaxf(density, 0.0f), density_mixer - 1.0);
@@ -268,196 +157,339 @@ __DEVICE__ float3 adjust_density(float3 color, float3 gamma, float density_mixer
     return _mix(adjusted_color, color, protectionStrength);
 }
 
-//------------------------------------------------------------------------------
-// Function: adjustSaturation
-// Description: Adjusts the saturation of an RGB color.
-//              Computes an achromatic value (the maximum channel), determines the distance of each channel
-//              from this value, and adjusts that distance based on the saturation parameter.
-// Parameters:
-//   rgb - The input color as a float3 (R, G, B).
-//   sat - The saturation adjustment factor (1.0 implies no change).
-// Returns:
-//   The saturation-adjusted color as a float3.
-//------------------------------------------------------------------------------
-
+// Adjusts RGB saturation
 __DEVICE__ float3 adjustSaturation(float3 rgb, float sat) {
-    sat -= 1.0f; // Offset: 1.0 means no adjustment
-
-    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
-    float3 distance = ach == 0.0f ? make_float3(0.0f, 0.0f, 0.0f) : (ach - rgb) / _fabs(ach);
-    distance *= (1.0f + sat);
-
-    float3 newRGB = ach - distance * _fabs(ach);
-
-    return newRGB;
-}
-
-//------------------------------------------------------------------------------
-// Function: adjustVibrance
-// Description: Adjusts the vibrance of an RGB color using a falloff effect based on current saturation.
-//              This function uses a logarithmic approach to achieve a subtler saturation adjustment that
-//              protects extreme values.
-// Parameters:
-//   rgb      - The input color as a float3 (R, G, B).
-//   vibrance - The vibrance adjustment factor (1.0 implies no change).
-// Returns:
-//   The vibrance-adjusted color as a float3.
-//------------------------------------------------------------------------------
-
-__DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance) {
-    vibrance -= 1.0f;
-    
-    float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
-    float minColor = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
-    float safeDivisor = _fmaxf(ach, EPSILON);
-    
-    float currentSaturation = (ach - minColor) / safeDivisor;
-    currentSaturation = _fmaxf(0.0f, _fminf(1.0f, currentSaturation));
-    
-    float smoothFactor = 0.1f;
-    float safeLogInput = _fmaxf(1.0f + currentSaturation, EPSILON);
-    
-    float adjustedVibranceEffect = vibrance > 0 ?
-        1.0f + (1.0f - currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput))) * vibrance :
-        1.0f + currentSaturation * (1.0f - smoothFactor * _logf(safeLogInput)) * vibrance;
-    
-    float3 distance;
-    if (ach < EPSILON) {
-        distance = make_float3(0.0f, 0.0f, 0.0f);
-    } else {
-        distance = (ach - rgb) / ach;
+    if (sat == 1.0f) {
+        return rgb;
     }
     
-    distance *= adjustedVibranceEffect;
+    sat -= 1.0f;
+    const float ach = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
     
-    float3 newRGB;
-    float safeAch = _fmaxf(ach, EPSILON);
-    newRGB.x = _fmaxf(_fminf(ach - distance.x * safeAch, 1.0f), 0.0f);
-    newRGB.y = _fmaxf(_fminf(ach - distance.y * safeAch, 1.0f), 0.0f);
-    newRGB.z = _fmaxf(_fminf(ach - distance.z * safeAch, 1.0f), 0.0f);
+    // Return original RGB for very dark/black pixels or negative values
+    if (ach <= EPSILON_VALUE || ach <= -10.0f) {
+        return rgb;
+    }
     
-    return newRGB;
+    const float scale = 1.0f / _fabs(ach);
+    const float factor = (1.0f + sat);
+    
+    return ach - ((ach - rgb) * scale * factor * _fabs(ach));
+}
+
+// Vibrance with hue targeting. 
+__DEVICE__ float3 adjustVibranceOriginal(float3 rgb, float vibrance)
+{
+    float mgl = vibrance - 1.0f;
+    
+    if (_fabs(mgl) < 0.005f) {
+        return rgb;
+    }
+    
+    const float p_base = 3.0f;
+    const float mgl_str = _powf(p_base, mgl);
+    
+    const float3 pp = make_float3(mgl_str, mgl_str, mgl_str);
+    const float3 ps = make_float3(
+        mgl_str,
+        mgl_str,
+        _powf(p_base / 1.5f, mgl)
+    );
+    
+    float n = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+    
+    float3 r = (n == 0.0f) ? make_float3(0.0f, 0.0f, 0.0f) : rgb / n;
+    r = make_float3(_fmaxf(r.x, -1.0f), _fmaxf(r.y, -1.0f), _fmaxf(r.z, -1.0f));
+    
+    float h = calc_hue(r);
+    float c = 1.0f - _fminf(r.x, _fminf(r.y, r.z));
+    
+    float3 r_hl = r;
+    
+    float3 hp = make_float3(
+        extract_hue_angle(h, 2.0f, 1.0f, 0),
+        extract_hue_angle(h, 6.0f, 1.0f, 0),
+        extract_hue_angle(h, 4.0f, 1.0f, 0)
+    );
+    hp = hp * c;
+    
+    float3 hs = make_float3(
+        extract_hue_angle(h, 5.0f, 1.0f, 0),
+        extract_hue_angle(h, 3.0f, 1.0f, 0),
+        extract_hue_angle(h, 1.0f, 1.0f, 0)
+    );
+    hs = hs * c;
+    
+    // Primary hue angle adjustments
+    if (r.x >= 0.0f) {
+        r.x = _powf(r.x, pp.x) * hp.x + _powf(r.x, pp.y) * hp.y + _powf(r.x, pp.z) * hp.z + r.x * 
+            (1.0f - (hp.x + hp.y + hp.z));
+    }
+    if (r.y >= 0.0f) {
+        r.y = _powf(r.y, pp.x) * hp.x + _powf(r.y, pp.y) * hp.y + _powf(r.y, pp.z) * hp.z + r.y * 
+            (1.0f - (hp.x + hp.y + hp.z));
+    }
+    if (r.z >= 0.0f) {
+        r.z = _powf(r.z, pp.x) * hp.x + _powf(r.z, pp.y) * hp.y + _powf(r.z, pp.z) * hp.z + r.z * 
+            (1.0f - (hp.x + hp.y + hp.z));
+    }
+    
+    // Secondary hue angle adjustments
+    if (r.x >= 0.0f) {
+        r.x = _powf(r.x, ps.x) * hs.x + _powf(r.x, ps.y) * hs.y + _powf(r.x, ps.z) * hs.z + r.x * 
+            (1.0f - (hs.x + hs.y + hs.z));
+    }
+    if (r.y >= 0.0f) {
+        r.y = _powf(r.y, ps.x) * hs.x + _powf(r.y, ps.y) * hs.y + _powf(r.y, ps.z) * hs.z + r.y * 
+            (1.0f - (hs.x + hs.y + hs.z));
+    }
+    if (r.z >= 0.0f) {
+        r.z = _powf(r.z, ps.x) * hs.x + _powf(r.z, ps.y) * hs.y + _powf(r.z, ps.z) * hs.z + r.z * 
+            (1.0f - (hs.x + hs.y + hs.z));
+    }
+    
+    // Chromaticity-linear adjustments
+    float vf, m;
+    
+    // Primaries
+    vf = c == 0.0f || c > 1.0f ? 1.0f : 
+        ((1.0f - _powf(1.0f - c, pp.x)) * hp.x + (1.0f - _powf(1.0f - c, pp.y)) * hp.y + 
+        (1.0f - _powf(1.0f - c, pp.z)) * hp.z + c * (1.0f - (hp.x + hp.y + hp.z))) / c;
+    m = 1.1f;
+    r_hl = m * (1.0f - vf) + r_hl * vf;
+    
+    // Secondaries
+    vf = c == 0.0f || c > 1.0f ? 1.0f : 
+        ((1.0f - _powf(1.0f - c, ps.x)) * hs.x + (1.0f - _powf(1.0f - c, ps.y)) * hs.y + 
+        (1.0f - _powf(1.0f - c, ps.z)) * hs.z + c * (1.0f - (hs.x + hs.y + hs.z))) / c;
+    m = 1.0f;
+    r_hl = m * (1.0f - vf) + r_hl * vf;
+    
+    // Mix hue-linear and direct adjustments
+    const float hl = 0.5f;
+    r = r * (1.0f - hl) + r_hl * hl;
+    
+    return r * n;
+}
+
+// Uniform vibrance algorithm
+__DEVICE__ float3 adjustVibranceUniform(float3 rgb, float vibrance)
+{
+    float mgl = vibrance - 1.0f;
+    
+    if (_fabs(mgl) < 0.005f) {
+        return rgb;
+    }
+    
+    // Use a simpler, more uniform approach for vibrance
+    float luma = 0.2126f * rgb.x + 0.7152f * rgb.y + 0.0722f * rgb.z; // Rec. 709 luma
+    float maxRGB = _fmaxf(rgb.x, _fmaxf(rgb.y, rgb.z));
+    float minRGB = _fminf(rgb.x, _fminf(rgb.y, rgb.z));
+    float sat = (maxRGB - minRGB) / (_fmaxf(maxRGB, EPSILON_VALUE));
+    
+    float adjustment = 1.0f + mgl; // Linear adjustment factor
+    
+    // Apply a smooth curve to the adjustment for more uniform effect
+    if (mgl > 0.0f) {
+        // Increasing vibrance (positive mgl)
+        adjustment = 1.0f + _powf(sat, 0.25f) * mgl; // Less aggressive on highly saturated colors
+    } else {
+        // Decreasing vibrance (negative mgl)
+        adjustment = 1.0f + sat * mgl; // Linear reduction based on saturation
+    }
+    
+    // Apply adjustment uniformly across all colors
+    float3 result = make_float3(
+        luma + adjustment * (rgb.x - luma),
+        luma + adjustment * (rgb.y - luma),
+        luma + adjustment * (rgb.z - luma)
+    );
+    
+    return result;
+}
+
+// Blended vibrance function
+__DEVICE__ float3 adjustVibrance(float3 rgb, float vibrance, float vibranceBalance)
+{
+    // Early exit for neutral vibrance
+    if (_fabs(vibrance - 1.0f) < 0.005f) {
+        return rgb;
+    }
+    
+    // Process with both algorithms
+    float3 original = adjustVibranceOriginal(rgb, vibrance);
+    float3 uniform = adjustVibranceUniform(rgb, vibrance);
+    
+    // Apply smooth blending based on vibranceBalance parameter
+    // Apply smoothstep for more intuitive control
+    float blend = vibranceBalance * vibranceBalance * (3.0f - 2.0f * vibranceBalance);
+    
+    // Mix the results
+    return make_float3(
+        original.x * (1.0f - blend) + uniform.x * blend,
+        original.y * (1.0f - blend) + uniform.y * blend,
+        original.z * (1.0f - blend) + uniform.z * blend
+    );
+}
+
+// Calculate Helmholtz-Kohlrausch effect compensation directly from XYZ
+__DEVICE__ float calculateHelmholtzEffect(float3 xyz, int method) {
+    // Function now accepts XYZ directly instead of RGB
+    
+    // Ensure non-negative XYZ values
+    xyz = maxf3(xyz, 0.0f);
+    
+    // D65 white point
+    float2 w_xy = make_float2(0.3127f, 0.329f);
+    const float w_uv_d = (-2.0f * w_xy.x + 12.0f * w_xy.y + 3.0f);
+    const float2 w_uv = make_float2(4.0f * w_xy.x / w_uv_d, 9.0f * w_xy.y / w_uv_d);
+    
+    // Convert XYZ to L*u'v'
+    float d = xyz.x + 15.0f * xyz.y + 3.0f * xyz.z;
+    const float _e = 216.0f / 24389.0f;
+    const float _k = 24389.0f / 27.0f;
+    float3 Luv = make_float3(
+        (xyz.y > _e ? 116.0f * _powf(xyz.y, 1.0f / 3.0f) - 16.0f : xyz.y * _k) / 100.0f,
+        d == 0.0f ? 0.0f : 4.0f * xyz.x / d,
+        d == 0.0f ? 0.0f : 9.0f * xyz.y / d
+    );
+
+    // Calculate Nayatani 1997 Helmholtz-Kohlrausch compensation factor
+    float m = method == 0 ? -0.866f : -0.134f; // VAC vs VCC
+    const float K_Br = 0.2717f * (6.469f + 6.362f * _powf(63.61f, 0.4495f)) / (6.469f + _powf(63.61f, 0.4495f));
+
+    // Hue angle in radians
+    float h = _atan2f(Luv.z - w_uv.y, Luv.y - w_uv.x);
+    h = h < 0.0f ? h + radians(360.0f) : h;
+
+    float q = -0.01585f - 0.03017f * _cosf(h) - 0.04556f * _cosf(2.0f * h) - 0.02667f * _cosf(3.0f * h) - 0.00295f * _cosf(4.0f * h) 
+              + 0.14592f * _sinf(h) + 0.05084f * _sinf(2.0f * h) - 0.01900f * _sinf(3.0f * h) - 0.00764f * _sinf(4.0f * h);
+    float S_uv = 13.0f * _hypotf(Luv.y - w_uv.x, Luv.z - w_uv.y);
+
+    float s = (1.0f + (m * q + 0.0872f * K_Br) * S_uv);
+    s = s == 0.0f ? 1.0f : 1.0f / s;
+    
+    return s;
 }
 
 //------------------------------------------------------------------------------
 // MAIN FUNCTION
 //------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-// Function: transform
-// Description: Main image transformation function that applies targeted color
-// adjustments with sophisticated recovery mechanisms. The process includes:
-// 1. Analyzing pixel brightness and calculating a base highlight mask.
-// 2. Computing saturation level and creating an inverse saturation mask.
-// 3. Implementing screen-blend highlight recovery for natural rolloff.
-// 4. Building density protection masks for saturated shadow areas.
-// 5. Applying sequential adjustments: density, vibrance, and saturation.
-// 6. Computing highlight and shadow recovery based on luminance.
-// 7. Performing two-stage blending with recovery masks.
-// 8. Providing optional mask visualization for debugging.
-//
-// Parameters:
-// p_Width, p_Height - Full image dimensions.
-// p_X, p_Y - Pixel coordinates in full image space.
-// p_R, p_G, p_B - Input color values (expected in 0.0 to 1.0 range).
-//
-// Global Parameters:
-// saturation - Global saturation adjustment strength.
-// vibrance - Smart saturation adjustment strength.
-// density - Base density adjustment strength.
-// highlightRecovery - Controls preservation of highlight detail.
-// shadowRecovery - Controls preservation of shadow detail.
-// densityRecovery - Controls protection of saturated dark areas.
-// shineRecovery - Controls the strength of highlight recovery preservation.
-// showMask - Enables visualization of internal masks.
-//
-// Returns:
-// The final output color (float3) after all adjustments and recoveries.
-//------------------------------------------------------------------------------
 
 __DEVICE__ float3 transform(int p_Width, int p_Height, int p_X, int p_Y, float p_R, float p_G, float p_B) {
-
-    //-------------------------------------------------------
-    // 1. Initial Brightness and Saturation Analysis
-    //-------------------------------------------------------
     float3 rgb = make_float3(p_R, p_G, p_B);
+    
+    // Early exit for default values
+    if (saturation == 1.0f && vibrance == 1.0f && density == 1.0f && 
+        highlightRecovery == 0.0f && shadowRecovery == 0.0f && 
+        densityRecovery == 0.0f && shineRecovery == 0.0f && 
+        helmholtzEffect == 1.0f && !showMask) {
+        return rgb;
+    }
+    
+    //-------------------------------------------------------
+    // Brightness and Saturation Analysis
+    //-------------------------------------------------------
     float brightness = (rgb.x + rgb.y + rgb.z) / 3.0f;
-    float falloff = 1.0f;
-    float highlightMask = _fminf(_fmaxf(brightness / falloff, 0.0f), 1.0f);
+    float highlightMask = _fminf(_fmaxf(brightness, 0.0f), 1.0f);
 
     float sat = calculate_saturation(rgb);
     float saturationThreshold = 0.25f;
     float saturationMask = 1.0f - _fminf(_fmaxf((sat - saturationThreshold) / 0.25f, 0.0f), 1.0f);
 
     //-------------------------------------------------------
-    // 2. Advanced Highlight Recovery with Screen-like Blend
+    // Highlight Recovery Mask
     //-------------------------------------------------------
-    // Use screen blend formula for smoother highlight rolloff:
-    // Screen(A,B) = 1 - (1-A)(1-B)
     float boostedHighlight = _fminf(highlightMask, 1.0f);
     float screenHighlight = 1.0f - (1.0f - boostedHighlight) * (1.0f - highlightMask);
     float combinedHighlightMask = screenHighlight * saturationMask;
     float shineMask = combinedHighlightMask * shineRecovery;
 
     //-------------------------------------------------------
-    // 3. Density Protection for Dark Saturated Areas
+    // Shadow Protection Mask
     //-------------------------------------------------------
-    // Create targeted protection for saturated shadows
-    // Improved density protection with smoother transitions
     float satProtectThreshold = 0.25f;
-    float protectFalloff = 0.25f;  // Increased for smoother transitions
+    float protectFalloff = 0.25f;
         
-    // Smoothstep-based saturation mask for smoother transitions
     float t = (sat - satProtectThreshold) / protectFalloff;
     t = _fmaxf(0.0f, _fminf(1.0f, t));
-    float satProtectMask = t * t * (3.0f - 2.0f * t); // Smoothstep function
+    float satProtectMask = t * t * (3.0f - 2.0f * t);
         
-    // Improved darkness mask with gamma correction for more natural falloff
     float darknessGamma = 2.0f;
     float darknessMask = powf(1.0f - brightness, darknessGamma);
         
-    // Gaussian-like falloff for density protection
-    float densityStrength = densityRecovery * densityRecovery; // Squared for smoother response
+    float densityStrength = densityRecovery * densityRecovery;
     float densityProtectMask = satProtectMask * darknessMask * densityStrength;
         
-    // Additional smoothing for edge transitions
     float edgeRadius = 0.1f;
     densityProtectMask = _fmaxf(0.0f, _fminf(1.0f, 
         densityProtectMask * (1.0f - _powf(_fmaxf(0.0f, brightness - (1.0f - edgeRadius)), 0.5f))
     ));
 
     //-------------------------------------------------------
-    // 4. Recovery Mask Combination and Color Adjustments
+    // Apply Adjustments
     //-------------------------------------------------------
-    // Combine shine and density protection
     float totalRecoveryMask = _fminf(shineMask + densityProtectMask, 1.0f);
-    
-    // Apply sequential color adjustments
+
     float3 densityAdjustedRGB = adjust_density(rgb, make_float3(1.0, 1.0, 1.0), density, 0.0f);
-    float3 vibranceAdjustedRGB = adjustVibrance(densityAdjustedRGB, vibrance);
+    // Pass vibranceBalance to the adjustVibrance function
+    float3 vibranceAdjustedRGB = adjustVibrance(densityAdjustedRGB, vibrance, vibranceBalance);
     float3 adjustedRGB = adjustSaturation(vibranceAdjustedRGB, saturation);
 
     //-------------------------------------------------------
-    // 5. Highlight and Shadow Recovery
+    // Recovery and Initial Blend
     //-------------------------------------------------------
-    // Calculate luminance-based recovery masks
     float luma = (rgb.x + rgb.y + rgb.z) / 3.0f;
     float highlightMaskStrength = luma * highlightRecovery;
     float shadowMaskStrength = (1.0f - luma) * shadowRecovery;
     
-    // Combine recovery masks for final blend control
     float recoveryMask = _fminf(highlightMaskStrength + shadowMaskStrength, 1.0f);
     float totalMask = _fminf(highlightMaskStrength + shadowMaskStrength + totalRecoveryMask, 1.0f);
 
-    //-------------------------------------------------------
-    // 6. Final Blending and Output
-    //-------------------------------------------------------
-    // Two-stage blending for precise control
     float3 maskedAdjustment = mix3(rgb, adjustedRGB, 1.0f - totalRecoveryMask);
     float3 outRGB = maskedAdjustment * (1.0f - recoveryMask) + rgb * recoveryMask;
 
     // Mask visualization
     if (showMask) {
         return make_float3(totalMask, totalMask, totalMask);
+    }
+    
+    //-------------------------------------------------------
+    // Apply Helmholtz-Kohlrausch Effect
+    //-------------------------------------------------------
+    if (helmholtzEffect != 1.0f) {
+        // Convert from DaVinci Intermediate (log) to linear RGB
+        float3 linearRGB = logToLinDavinciIntermediate(outRGB);
+        
+        // Convert from DaVinci Wide Gamut RGB to XYZ
+        float3 xyzColor = DaVinciWideGamuttoXYZ(linearRGB);
+        
+        // Calculate the Helmholtz-Kohlrausch effect using XYZ values
+        float hkFactor = calculateHelmholtzEffect(xyzColor, hkMethod);
+        
+        // Scale the effect based on strength parameter (1.0 is neutral)
+        if (helmholtzEffect < 1.0f) {
+            // Invert effect for values < 1.0
+            hkFactor = 1.0f + (1.0f - helmholtzEffect) * (1.0f / hkFactor - 1.0f);
+        } else if (helmholtzEffect > 1.0f) {
+            // Increase effect for values > 1.0
+            hkFactor = _powf(hkFactor, (helmholtzEffect - 1.0f) * 2.0f + 1.0f);
+        } else {
+            // At exactly 1.0, no effect (hkFactor = 1.0)
+            hkFactor = 1.0f;
+        }
+        
+        // Apply the HK effect to linear RGB values
+        linearRGB *= hkFactor;
+        
+        // Convert back to XYZ
+        xyzColor = DaVinciWideGamuttoXYZ(linearRGB);
+        
+        // Convert back to DaVinci Wide Gamut RGB (linear)
+        linearRGB = XYZtoDaVinciWideGamut(xyzColor);
+        
+        // Convert back to DaVinci Intermediate (log)
+        outRGB = linToLogDavinciIntermediate(linearRGB);
     }
 
     return outRGB;
